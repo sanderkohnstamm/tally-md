@@ -76,6 +76,8 @@ async function save(silent) {
 function scheduleAutoSave() {
   clearTimeout(autoSaveTimeout);
   autoSaveTimeout = setTimeout(() => save(true), 1000);
+  // Reset idle sync timer on each edit
+  scheduleIdleSync();
 }
 
 async function completeItem() {
@@ -285,6 +287,7 @@ async function saveThemeToSettings(idx) {
     dateFormat: s.date_format,
     layout: s.layout,
     paneSizes: s.pane_sizes,
+    syncInterval: s.sync_interval,
     setupDone: s.setup_done,
   });
 }
@@ -368,12 +371,100 @@ async function savePaneSizes() {
     dateFormat: s.date_format,
     layout: s.layout,
     paneSizes: settingsState.paneSizes,
+    syncInterval: s.sync_interval,
     setupDone: s.setup_done,
   });
 }
 
 // --- Settings panel ---
-let settingsState = { storageMode: 'local', localPath: '', gitRepo: '', themeIndex: 0, dateFormat: '%Y-%m-%d', layout: 'horizontal', paneSizes: [40, 30, 30] };
+let settingsState = { storageMode: 'local', localPath: '', gitRepo: '', themeIndex: 0, dateFormat: '%Y-%m-%d', layout: 'horizontal', paneSizes: [40, 30, 30], syncInterval: 5 };
+let syncIdleTimeout = null;
+let syncIntervalTimer = null;
+let isSyncing = false;
+
+function updateSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (el) el.textContent = msg;
+}
+
+async function gitSync(silent) {
+  if (isSyncing) return;
+  if (settingsState.storageMode !== 'git') return;
+  isSyncing = true;
+  updateSyncStatus('syncing...');
+  try {
+    const result = await invoke('git_sync_full');
+    updateSyncStatus('');
+    if (!silent) showMessage(result);
+  } catch (e) {
+    updateSyncStatus('sync error');
+    if (!silent) showMessage('Sync error: ' + e);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+async function gitPull(silent) {
+  if (isSyncing) return;
+  if (settingsState.storageMode !== 'git') return;
+  isSyncing = true;
+  updateSyncStatus('pulling...');
+  try {
+    const result = await invoke('git_pull');
+    updateSyncStatus('');
+    if (!silent) showMessage(result);
+    // Reload files after pull
+    const files = await invoke('load_files');
+    views.todo.dispatch({ changes: { from: 0, to: views.todo.state.doc.length, insert: files.todo } });
+    views.today.dispatch({ changes: { from: 0, to: views.today.state.doc.length, insert: files.today } });
+    views.done.dispatch({ changes: { from: 0, to: views.done.state.doc.length, insert: files.done } });
+  } catch (e) {
+    updateSyncStatus('pull error');
+    if (!silent) showMessage('Pull error: ' + e);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+async function gitPush(silent) {
+  if (isSyncing) return;
+  if (settingsState.storageMode !== 'git') return;
+  isSyncing = true;
+  updateSyncStatus('pushing...');
+  try {
+    const result = await invoke('git_push');
+    updateSyncStatus('');
+    if (!silent) showMessage(result);
+  } catch (e) {
+    updateSyncStatus('push error');
+    if (!silent) showMessage('Push error: ' + e);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+function scheduleIdleSync() {
+  if (settingsState.storageMode !== 'git' || settingsState.syncInterval === 0) return;
+  clearTimeout(syncIdleTimeout);
+  syncIdleTimeout = setTimeout(() => {
+    gitSync(true);
+  }, settingsState.syncInterval * 60 * 1000);
+}
+
+function startSyncInterval() {
+  stopSyncInterval();
+  if (settingsState.storageMode !== 'git' || settingsState.syncInterval === 0) return;
+  syncIntervalTimer = setInterval(() => {
+    gitSync(true);
+  }, settingsState.syncInterval * 60 * 1000);
+}
+
+function stopSyncInterval() {
+  if (syncIntervalTimer) {
+    clearInterval(syncIntervalTimer);
+    syncIntervalTimer = null;
+  }
+}
 
 function openSettings(isFirstTime) {
   const overlay = document.getElementById('settings-overlay');
@@ -385,22 +476,65 @@ function openSettings(isFirstTime) {
   const cancel = document.getElementById('settings-cancel');
   cancel.style.display = isFirstTime ? 'none' : '';
 
+  const showGitFields = (mode) => {
+    const isGit = mode === 'git';
+    document.getElementById('group-local-path').style.display = isGit ? 'none' : '';
+    document.getElementById('group-git-repo').style.display = isGit ? '' : 'none';
+    document.getElementById('group-git-token').style.display = isGit ? '' : 'none';
+    document.getElementById('group-sync-interval').style.display = isGit ? '' : 'none';
+  };
+
   // Storage mode buttons
   document.querySelectorAll('[data-mode]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === settingsState.storageMode);
     btn.onclick = () => {
       settingsState.storageMode = btn.dataset.mode;
       document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === settingsState.storageMode));
-      document.getElementById('group-local-path').style.display = settingsState.storageMode === 'local' ? '' : 'none';
-      document.getElementById('group-git-repo').style.display = settingsState.storageMode === 'git' ? '' : 'none';
+      showGitFields(settingsState.storageMode);
     };
   });
 
-  document.getElementById('group-local-path').style.display = settingsState.storageMode === 'local' ? '' : 'none';
-  document.getElementById('group-git-repo').style.display = settingsState.storageMode === 'git' ? '' : 'none';
+  showGitFields(settingsState.storageMode);
 
   document.getElementById('settings-path').value = settingsState.localPath;
   document.getElementById('settings-git-repo').value = settingsState.gitRepo;
+
+  // Git token
+  const tokenInput = document.getElementById('settings-git-token');
+  tokenInput.value = '';
+  const tokenStatus = document.getElementById('token-status');
+  invoke('git_has_token').then(has => {
+    tokenStatus.textContent = has ? 'Token stored in keychain' : 'No token stored';
+    if (has) tokenInput.placeholder = '••••••••  (stored)';
+  });
+
+  // Toggle token visibility
+  const toggleBtn = document.getElementById('btn-toggle-token');
+  toggleBtn.textContent = 'Show';
+  tokenInput.type = 'password';
+  toggleBtn.onclick = () => {
+    const showing = tokenInput.type === 'text';
+    tokenInput.type = showing ? 'password' : 'text';
+    toggleBtn.textContent = showing ? 'Show' : 'Hide';
+  };
+
+  // Generate token link — auto-detect GitHub/GitLab
+  const helpLink = document.getElementById('token-help-link');
+  const repoUrl = document.getElementById('settings-git-repo').value || '';
+  if (repoUrl.includes('gitlab')) {
+    helpLink.href = 'https://gitlab.com/-/user_settings/personal_access_tokens';
+  } else {
+    helpLink.href = 'https://github.com/settings/tokens/new?description=Tally.md&scopes=repo';
+  }
+
+  // Sync interval buttons
+  document.querySelectorAll('[data-sync]').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.sync) === settingsState.syncInterval);
+    btn.onclick = () => {
+      settingsState.syncInterval = parseInt(btn.dataset.sync);
+      document.querySelectorAll('[data-sync]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.sync) === settingsState.syncInterval));
+    };
+  });
 
   // Theme swatches
   const picker = document.getElementById('theme-picker');
@@ -447,6 +581,16 @@ function openSettings(isFirstTime) {
     settingsState.localPath = document.getElementById('settings-path').value || settingsState.localPath;
     settingsState.gitRepo = document.getElementById('settings-git-repo').value || '';
 
+    // Store git token if provided
+    const tokenVal = document.getElementById('settings-git-token').value;
+    if (tokenVal && settingsState.storageMode === 'git') {
+      try {
+        await invoke('git_store_token', { token: tokenVal });
+      } catch (e) {
+        showMessage('Failed to store token: ' + e);
+      }
+    }
+
     await invoke('save_settings', {
       storageMode: settingsState.storageMode,
       localPath: settingsState.localPath,
@@ -455,11 +599,17 @@ function openSettings(isFirstTime) {
       dateFormat: settingsState.dateFormat,
       layout: settingsState.layout,
       paneSizes: settingsState.paneSizes,
+      syncInterval: settingsState.syncInterval,
       setupDone: true,
     });
 
     overlay.style.display = 'none';
     showMessage('Settings saved');
+
+    // If git mode, do initial pull
+    if (settingsState.storageMode === 'git' && settingsState.gitRepo) {
+      await gitPull(false);
+    }
 
     // Reload files from potentially new path
     const files = await invoke('load_files');
@@ -469,6 +619,9 @@ function openSettings(isFirstTime) {
     views.todo.dispatch({ changes: { from: 0, to: views.todo.state.doc.length, insert: files.todo } });
     views.today.dispatch({ changes: { from: 0, to: views.today.state.doc.length, insert: files.today } });
     views.done.dispatch({ changes: { from: 0, to: views.done.state.doc.length, insert: files.done } });
+
+    // Restart sync timer
+    startSyncInterval();
   };
 
   // Cancel button
@@ -500,7 +653,10 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     cyclePane(1);
   }
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    gitSync(false);
+  } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') {
     e.preventDefault();
     toggleDonePane();
   }
@@ -525,7 +681,7 @@ function setHelpText() {
   const mod = navigator.platform.includes('Mac') ? '⌘' : 'Ctrl';
   const shift = navigator.platform.includes('Mac') ? '⇧' : 'Shift';
   document.getElementById('status-help').textContent =
-    `${mod}+Enter: move → · ${mod}+${shift}+Enter: send ← · ${mod}+\\: pane · ${mod}+${shift}+B: toggle done · ${mod}+S: save · ${mod}+K: theme · ${mod}+,: settings`;
+    `${mod}+Enter: move → · ${mod}+${shift}+Enter: send ← · ${mod}+\\: pane · ${mod}+S: save · ${mod}+${shift}+S: sync · ${mod}+K: theme · ${mod}+,: settings`;
 }
 
 async function init() {
@@ -539,8 +695,14 @@ async function init() {
     dateFormat: settings.date_format,
     layout: settings.layout || 'horizontal',
     paneSizes: settings.pane_sizes || [40, 30, 30],
+    syncInterval: settings.sync_interval ?? 5,
   };
   currentPalette = settings.theme_index;
+
+  // Pull from git on startup
+  if (settings.setup_done && settingsState.storageMode === 'git' && settingsState.gitRepo) {
+    await gitPull(true);
+  }
 
   const files = await invoke('load_files');
 
@@ -579,6 +741,17 @@ async function init() {
   } else {
     showMessage('Ready');
   }
+
+  // Start auto-sync interval
+  startSyncInterval();
+
+  // Push on app close
+  window.addEventListener('beforeunload', () => {
+    if (settingsState.storageMode === 'git' && settingsState.gitRepo) {
+      // Fire-and-forget push — beforeunload can't await
+      invoke('git_push').catch(() => {});
+    }
+  });
 }
 
 init();

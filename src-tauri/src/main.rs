@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod finished;
+mod git_sync;
 mod settings;
 
 use std::path::PathBuf;
@@ -9,12 +10,7 @@ use chrono::Local;
 
 fn todos_dir() -> PathBuf {
     let s = settings::load();
-    let path = if s.storage_mode == "git" && !s.git_repo.is_empty() {
-        // For git mode, still use local_path as the working directory
-        PathBuf::from(&s.local_path)
-    } else {
-        PathBuf::from(&s.local_path)
-    };
+    let path = PathBuf::from(&s.local_path);
     let _ = std::fs::create_dir_all(&path);
     path
 }
@@ -146,6 +142,7 @@ fn save_settings(
     date_format: String,
     layout: String,
     pane_sizes: Vec<f64>,
+    sync_interval: u64,
     setup_done: bool,
 ) -> Result<String, String> {
     let s = settings::Settings {
@@ -156,10 +153,65 @@ fn save_settings(
         date_format,
         layout,
         pane_sizes,
+        sync_interval,
         setup_done,
     };
     settings::save(&s)?;
     Ok("Settings saved".to_string())
+}
+
+// --- Git sync commands ---
+
+#[tauri::command]
+fn git_store_token(token: String) -> Result<String, String> {
+    git_sync::store_token(&token)?;
+    Ok("Token stored".to_string())
+}
+
+#[tauri::command]
+fn git_has_token() -> bool {
+    git_sync::has_token()
+}
+
+#[tauri::command]
+fn git_delete_token() -> Result<String, String> {
+    git_sync::delete_token()?;
+    Ok("Token deleted".to_string())
+}
+
+#[tauri::command]
+fn git_pull() -> Result<String, String> {
+    let s = settings::load();
+    if s.storage_mode != "git" || s.git_repo.is_empty() {
+        return Err("Git sync not configured".to_string());
+    }
+    let token = git_sync::get_token()?;
+    git_sync::pull(&s.git_repo, &s.local_path, &token)
+}
+
+#[tauri::command]
+fn git_push() -> Result<String, String> {
+    let s = settings::load();
+    if s.storage_mode != "git" || s.git_repo.is_empty() {
+        return Err("Git sync not configured".to_string());
+    }
+    let token = git_sync::get_token()?;
+    git_sync::commit_and_push(&s.git_repo, &s.local_path, &token)
+}
+
+#[tauri::command]
+fn git_sync_full() -> Result<String, String> {
+    let s = settings::load();
+    if s.storage_mode != "git" || s.git_repo.is_empty() {
+        return Err("Git sync not configured".to_string());
+    }
+    let token = git_sync::get_token()?;
+
+    // Pull first, then commit+push
+    let pull_msg = git_sync::pull(&s.git_repo, &s.local_path, &token)?;
+    let push_msg = git_sync::commit_and_push(&s.git_repo, &s.local_path, &token)?;
+
+    Ok(format!("{} | {}", pull_msg, push_msg))
 }
 
 fn main() {
@@ -171,6 +223,12 @@ fn main() {
             recover_item,
             load_settings,
             save_settings,
+            git_store_token,
+            git_has_token,
+            git_delete_token,
+            git_pull,
+            git_push,
+            git_sync_full,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

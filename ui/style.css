@@ -344,3 +344,29 @@ html, body {
 .settings-secondary-btn:hover {
   color: var(--text);
 }
+
+.settings-link {
+  color: var(--blue);
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+.settings-link:hover {
+  text-decoration: underline;
+}
+
+.settings-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--subtext);
+  margin-top: 4px;
+}
+
+/* Sync indicator in status bar */
+#sync-status {
+  color: var(--subtext);
+  font-size: 11px;
+  margin-left: 8px;
+}

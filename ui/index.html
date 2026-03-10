@@ -35,6 +35,7 @@
     </div>
     <div id="status-bar">
       <span id="status-message">Ready</span>
+      <span id="sync-status"></span>
       <span id="status-help"></span>
     </div>
   </div>
@@ -60,6 +61,25 @@
       <div class="settings-group" id="group-git-repo" style="display:none">
         <label class="settings-label">Git repository URL</label>
         <input type="text" id="settings-git-repo" class="settings-input" placeholder="https://github.com/user/todos.git">
+      </div>
+
+      <div class="settings-group" id="group-git-token" style="display:none">
+        <label class="settings-label">Personal access token <a id="token-help-link" class="settings-link" target="_blank">(generate)</a></label>
+        <div class="settings-row">
+          <input type="password" id="settings-git-token" class="settings-input" style="flex:1" placeholder="ghp_xxxxxxxxxxxx">
+          <button class="settings-btn" id="btn-toggle-token" type="button">Show</button>
+        </div>
+        <span id="token-status" class="settings-hint"></span>
+      </div>
+
+      <div class="settings-group" id="group-sync-interval" style="display:none">
+        <label class="settings-label">Auto-sync interval</label>
+        <div class="settings-row">
+          <button class="settings-btn" data-sync="0">Off</button>
+          <button class="settings-btn" data-sync="5">5 min</button>
+          <button class="settings-btn" data-sync="15">15 min</button>
+          <button class="settings-btn" data-sync="30">30 min</button>
+        </div>
       </div>
 
       <div class="settings-group">

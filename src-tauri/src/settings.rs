@@ -10,6 +10,7 @@ pub struct Settings {
     pub date_format: String,        // e.g. "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"
     pub layout: String,             // "horizontal" or "vertical"
     pub pane_sizes: Vec<f64>,       // [todo%, today%, done%] — stored as 0-100
+    pub sync_interval: u64,         // auto-sync interval in minutes (0 = disabled)
     pub setup_done: bool,           // whether first-time setup has been completed
 }
 
@@ -29,6 +30,7 @@ impl Default for Settings {
             date_format: "%Y-%m-%d".to_string(),
             layout: "horizontal".to_string(),
             pane_sizes: vec![40.0, 30.0, 30.0],
+            sync_interval: 5,
             setup_done: false,
         }
     }
