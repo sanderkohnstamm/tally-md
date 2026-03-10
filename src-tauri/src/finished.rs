@@ -1,5 +1,42 @@
 use chrono::NaiveDate;
 
+/// Simple move: take a list item from source and append to target.
+/// Returns (new_source, new_target).
+pub fn move_item(
+    source_text: &str,
+    target_text: &str,
+    cursor_line: usize,
+) -> Option<(String, String)> {
+    let source_lines: Vec<&str> = source_text.lines().collect();
+    if cursor_line >= source_lines.len() {
+        return None;
+    }
+
+    let line = source_lines[cursor_line];
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with("- ") {
+        return None;
+    }
+
+    // Remove line from source
+    let mut new_source: Vec<&str> = source_lines.clone();
+    new_source.remove(cursor_line);
+    if new_source.is_empty() {
+        new_source.push("");
+    }
+
+    // Append to target
+    let mut target = target_text.to_string();
+    if target.trim().is_empty() {
+        target = trimmed.to_string();
+    } else {
+        target.push('\n');
+        target.push_str(trimmed);
+    }
+
+    Some((new_source.join("\n"), target))
+}
+
 /// Complete a todo item: given the full todo text and cursor line,
 /// returns (new_todo_text, new_finished_text).
 pub fn complete_item(

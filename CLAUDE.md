@@ -1,6 +1,8 @@
-# Todos — Tauri Markdown Todo Editor
+# Tally.md — Markdown Todo Editor
 
-A two-pane desktop markdown editor for managing tasks with completion tracking, built with Tauri 2.x.
+A three-pane desktop markdown editor for managing tasks with a done log, built with Tauri 2.x.
+
+The flow: **Todo → Today → Done**. Pick what to work on today, then mark items done. Done items accumulate as a log organized by date — a record of what you accomplished.
 
 ## Tech Stack
 
@@ -14,11 +16,11 @@ A two-pane desktop markdown editor for managing tasks with completion tracking, 
 ```
 src-tauri/          Tauri/Rust backend
   src/main.rs       Entry point, IPC command handlers (load_files, save_files, complete_item, recover_item)
-  src/finished.rs   Completion/recovery logic, breadcrumb building, date headers
+  src/finished.rs   Completion/recovery logic, breadcrumb building, date headers, item moving
   tauri.conf.json   Tauri config
 src-ui/             Frontend source
   main.js           Core app logic, CodeMirror setup, keybindings, IPC calls
-  themes.js         6 color theme palettes
+  themes.js         8 color theme palettes
 ui/                 Built frontend (served by Tauri)
   index.html        HTML template
   style.css         Stylesheet
@@ -28,7 +30,7 @@ src/                Original TUI source (legacy, not used by desktop app)
 
 ## Data Storage
 
-Files live in `~/.todos/`: `todo.md` (active tasks) and `finished.md` (completed, organized by date headers).
+Files live in `~/.todos/`: `todo.md` (backlog), `today.md` (today's focus), and `done.md` (completed, organized by date headers).
 
 ## Commands
 
@@ -41,9 +43,9 @@ Files live in `~/.todos/`: `todo.md` (active tasks) and `finished.md` (completed
 ## Architecture
 
 Four Tauri IPC commands handle all backend logic:
-1. `load_files()` — reads both files, fills missing date headers
-2. `save_files(todo, finished)` — writes both to disk
-3. `complete_item(todo, finished, cursor_line)` — moves task from todo to finished with breadcrumb context
-4. `recover_item(finished, todo, cursor_line)` — moves task back to todo, strips breadcrumb
+1. `load_files()` — reads all three files, fills missing date headers in done.md
+2. `save_files(todo, today, done)` — writes all three to disk
+3. `complete_item(source, target, cursor_line, to_done)` — moves item forward (todo→today or today→done with breadcrumb)
+4. `recover_item(source, target, cursor_line, from_done)` — moves item backward (done→todo strips breadcrumb, today→todo simple move)
 
-Frontend uses two CodeMirror editor instances (todo 65%, finished 35%) with auto-save (1s debounce), 6 themes, and fold/unfold for headings.
+Frontend uses three CodeMirror editor instances (todo 40%, today 30%, done 30%) with auto-save (1s debounce), 8 themes, and fold/unfold for headings. Cmd+Enter moves items forward through the flow; in the done pane it recovers back to todo.

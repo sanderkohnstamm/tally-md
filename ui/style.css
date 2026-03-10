@@ -51,11 +51,15 @@ html, body {
 }
 
 #todo-pane {
-  flex: 65;
+  flex: 40;
 }
 
-#finished-pane {
-  flex: 35;
+#today-pane {
+  flex: 30;
+}
+
+#done-pane {
+  flex: 30;
 }
 
 .divider {
@@ -93,13 +97,14 @@ html, body {
 }
 
 /* CodeMirror containers */
-#todo-editor, #finished-editor {
+#todo-editor, #today-editor, #done-editor {
   flex: 1;
   overflow: hidden;
 }
 
 #todo-editor .cm-editor,
-#finished-editor .cm-editor {
+#today-editor .cm-editor,
+#done-editor .cm-editor {
   height: 100%;
 }
 

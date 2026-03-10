@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Todos</title>
+  <title>Tally.md</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,12 +17,20 @@
         <div id="todo-editor"></div>
       </div>
       <div class="divider"></div>
-      <div class="pane" id="finished-pane">
+      <div class="pane" id="today-pane">
         <div class="pane-header">
-          <span class="pane-title">finished.md</span>
-          <span class="pane-badge" id="finished-dirty" style="display:none">[+]</span>
+          <span class="pane-title">today.md</span>
+          <span class="pane-badge" id="today-dirty" style="display:none">[+]</span>
         </div>
-        <div id="finished-editor"></div>
+        <div id="today-editor"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="pane" id="done-pane">
+        <div class="pane-header">
+          <span class="pane-title">done.md</span>
+          <span class="pane-badge" id="done-dirty" style="display:none">[+]</span>
+        </div>
+        <div id="done-editor"></div>
       </div>
     </div>
     <div id="status-bar">

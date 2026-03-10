@@ -24,10 +24,10 @@ const headingFold = foldService.of((state, lineStart, lineEnd) => {
 
 const { invoke } = window.__TAURI__.core;
 
-let todoView = null;
-let finishedView = null;
+const panes = ['todo', 'today', 'done'];
+let views = { todo: null, today: null, done: null };
 let focusedPane = 'todo';
-let finishedVisible = true;
+let doneVisible = true;
 let currentPalette = 0;
 let statusTimeout = null;
 let autoSaveTimeout = null;
@@ -40,8 +40,9 @@ function showMessage(msg) {
 }
 
 function updateFocus() {
-  document.getElementById('todo-pane').classList.toggle('focused', focusedPane === 'todo');
-  document.getElementById('finished-pane').classList.toggle('focused', focusedPane === 'finished');
+  panes.forEach(p => {
+    document.getElementById(`${p}-pane`).classList.toggle('focused', focusedPane === p);
+  });
 }
 
 function markDirty(pane) {
@@ -49,12 +50,13 @@ function markDirty(pane) {
 }
 
 function clearDirty() {
-  document.getElementById('todo-dirty').style.display = 'none';
-  document.getElementById('finished-dirty').style.display = 'none';
+  panes.forEach(p => {
+    document.getElementById(`${p}-dirty`).style.display = 'none';
+  });
 }
 
 function getActiveView() {
-  return focusedPane === 'todo' ? todoView : finishedView;
+  return views[focusedPane];
 }
 
 function getCursorLine(view) {
@@ -63,9 +65,10 @@ function getCursorLine(view) {
 }
 
 async function save(silent) {
-  const todo = todoView.state.doc.toString();
-  const finished = finishedView.state.doc.toString();
-  await invoke('save_files', { todo, finished });
+  const todo = views.todo.state.doc.toString();
+  const today = views.today.state.doc.toString();
+  const done = views.done.state.doc.toString();
+  await invoke('save_files', { todo, today, done });
   clearDirty();
   if (!silent) showMessage('Saved');
 }
@@ -77,34 +80,52 @@ function scheduleAutoSave() {
 
 async function completeItem() {
   if (focusedPane === 'todo') {
-    const todo = todoView.state.doc.toString();
-    const finished = finishedView.state.doc.toString();
-    const cursorLine = getCursorLine(todoView);
-    const result = await invoke('complete_item', { todo, finished, cursorLine });
+    // todo -> today
+    const source = views.todo.state.doc.toString();
+    const target = views.today.state.doc.toString();
+    const cursorLine = getCursorLine(views.todo);
+    const result = await invoke('complete_item', { source, target, cursorLine, toDone: false });
 
-    // Preserve cursor position as much as possible
-    const cursorPos = Math.min(todoView.state.selection.main.head, result.todo.length);
-    todoView.dispatch({
-      changes: { from: 0, to: todoView.state.doc.length, insert: result.todo },
+    const cursorPos = Math.min(views.todo.state.selection.main.head, result.source.length);
+    views.todo.dispatch({
+      changes: { from: 0, to: views.todo.state.doc.length, insert: result.source },
       selection: { anchor: cursorPos },
     });
-    finishedView.dispatch({
-      changes: { from: 0, to: finishedView.state.doc.length, insert: result.finished },
+    views.today.dispatch({
+      changes: { from: 0, to: views.today.state.doc.length, insert: result.target },
     });
     await save(true);
     showMessage(result.message);
-  } else {
-    const finished = finishedView.state.doc.toString();
-    const todo = todoView.state.doc.toString();
-    const cursorLine = getCursorLine(finishedView);
-    const result = await invoke('recover_item', { finished, todo, cursorLine });
+  } else if (focusedPane === 'today') {
+    // today -> done
+    const source = views.today.state.doc.toString();
+    const target = views.done.state.doc.toString();
+    const cursorLine = getCursorLine(views.today);
+    const result = await invoke('complete_item', { source, target, cursorLine, toDone: true });
 
-    const cursorPos = Math.min(finishedView.state.selection.main.head, result.finished.length);
-    todoView.dispatch({
-      changes: { from: 0, to: todoView.state.doc.length, insert: result.todo },
+    const cursorPos = Math.min(views.today.state.selection.main.head, result.source.length);
+    views.today.dispatch({
+      changes: { from: 0, to: views.today.state.doc.length, insert: result.source },
+      selection: { anchor: cursorPos },
     });
-    finishedView.dispatch({
-      changes: { from: 0, to: finishedView.state.doc.length, insert: result.finished },
+    views.done.dispatch({
+      changes: { from: 0, to: views.done.state.doc.length, insert: result.target },
+    });
+    await save(true);
+    showMessage(result.message);
+  } else if (focusedPane === 'done') {
+    // done -> todo (recover)
+    const source = views.done.state.doc.toString();
+    const target = views.todo.state.doc.toString();
+    const cursorLine = getCursorLine(views.done);
+    const result = await invoke('recover_item', { source, target, cursorLine, fromDone: true });
+
+    const cursorPos = Math.min(views.done.state.selection.main.head, result.source.length);
+    views.todo.dispatch({
+      changes: { from: 0, to: views.todo.state.doc.length, insert: result.target },
+    });
+    views.done.dispatch({
+      changes: { from: 0, to: views.done.state.doc.length, insert: result.source },
       selection: { anchor: cursorPos },
     });
     await save(true);
@@ -116,9 +137,7 @@ function toggleWrap(view, mark) {
   const { from, to } = view.state.selection.main;
   const len = mark.length;
   const doc = view.state.doc;
-  const selected = doc.sliceString(from, to);
 
-  // Check if selection is already wrapped
   if (from >= len && to + len <= doc.length) {
     const before = doc.sliceString(from - len, from);
     const after = doc.sliceString(to, to + len);
@@ -134,7 +153,6 @@ function toggleWrap(view, mark) {
     }
   }
 
-  // Wrap selection
   view.dispatch({
     changes: [
       { from, insert: mark },
@@ -204,21 +222,23 @@ function createEditor(parent, content, pane) {
   return new EditorView({ state, parent });
 }
 
-function toggleFinishedPane() {
-  finishedVisible = !finishedVisible;
-  const finishedPane = document.getElementById('finished-pane');
-  const divider = document.querySelector('.divider');
-  if (finishedVisible) {
-    finishedPane.style.display = '';
-    divider.style.display = '';
-    showMessage('Finished pane shown');
+function toggleDonePane() {
+  doneVisible = !doneVisible;
+  const donePane = document.getElementById('done-pane');
+  const dividers = document.querySelectorAll('.divider');
+  if (doneVisible) {
+    donePane.style.display = '';
+    dividers[1].style.display = '';
+    showMessage('Done pane shown');
   } else {
-    finishedPane.style.display = 'none';
-    divider.style.display = 'none';
-    focusedPane = 'todo';
-    updateFocus();
-    todoView.focus();
-    showMessage('Finished pane hidden');
+    donePane.style.display = 'none';
+    dividers[1].style.display = 'none';
+    if (focusedPane === 'done') {
+      focusedPane = 'today';
+      updateFocus();
+      views.today.focus();
+    }
+    showMessage('Done pane hidden');
   }
 }
 
@@ -229,21 +249,27 @@ function cyclePalette() {
   showMessage(`Theme: ${p.name}`);
 }
 
+function cyclePane(direction) {
+  const visible = panes.filter(p => {
+    if (p === 'done' && !doneVisible) return false;
+    return true;
+  });
+  const idx = visible.indexOf(focusedPane);
+  const next = (idx + direction + visible.length) % visible.length;
+  focusedPane = visible[next];
+  updateFocus();
+  views[focusedPane].focus();
+}
+
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
     e.preventDefault();
-    if (!finishedVisible) {
-      toggleFinishedPane();
-      return;
-    }
-    focusedPane = focusedPane === 'todo' ? 'finished' : 'todo';
-    updateFocus();
-    getActiveView().focus();
+    cyclePane(1);
   }
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') {
     e.preventDefault();
-    toggleFinishedPane();
+    toggleDonePane();
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
@@ -255,32 +281,39 @@ function setHelpText() {
   const mod = navigator.platform.includes('Mac') ? '⌘' : 'Ctrl';
   const shift = navigator.platform.includes('Mac') ? '⇧' : 'Shift';
   document.getElementById('status-help').textContent =
-    `${mod}+S: save · ${mod}+Enter: complete/recover · ${mod}+\\: switch pane · ${mod}+${shift}+B: toggle finished · ${mod}+B: bold · ${mod}+I: italic · ${mod}+K: theme · ${mod}+E: fold · ${mod}+${shift}+E: fold all · Tab: indent`;
+    `${mod}+Enter: move item → · ${mod}+\\: switch pane · ${mod}+${shift}+B: toggle done · ${mod}+S: save · ${mod}+B: bold · ${mod}+I: italic · ${mod}+K: theme · ${mod}+E: fold`;
 }
 
 async function init() {
   const files = await invoke('load_files');
 
   document.querySelector('#todo-pane .pane-title').textContent = files.todo_path;
-  document.querySelector('#finished-pane .pane-title').textContent = files.finished_path;
+  document.querySelector('#today-pane .pane-title').textContent = files.today_path;
+  document.querySelector('#done-pane .pane-title').textContent = files.done_path;
 
-  todoView = createEditor(
+  views.todo = createEditor(
     document.getElementById('todo-editor'),
     files.todo,
     'todo'
   );
 
-  finishedView = createEditor(
-    document.getElementById('finished-editor'),
-    files.finished,
-    'finished'
+  views.today = createEditor(
+    document.getElementById('today-editor'),
+    files.today,
+    'today'
+  );
+
+  views.done = createEditor(
+    document.getElementById('done-editor'),
+    files.done,
+    'done'
   );
 
   applyPalette(palettes[currentPalette]);
   setHelpText();
   focusedPane = 'todo';
   updateFocus();
-  todoView.focus();
+  views.todo.focus();
   showMessage('Ready');
 }
 

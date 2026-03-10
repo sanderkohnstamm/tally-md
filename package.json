@@ -1,5 +1,5 @@
 {
-  "name": "todos-ui",
+  "name": "tallymd",
   "private": true,
   "scripts": {
     "build": "esbuild src-ui/main.js --bundle --outfile=ui/bundle.js --format=iife --minify",
