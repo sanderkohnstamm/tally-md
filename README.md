@@ -78,7 +78,7 @@ See [`example/`](example/) for full sample files.
 
 **Local:** files in `~/.todos/` (configurable).
 
-**Git sync:** connect a repo to sync across machines. Token stored in OS keychain. Settings sync too.
+**Git sync:** connect a repo to sync across machines. Token stored in OS keychain. Settings sync too. If a merge conflict overwrites your local changes, Tally.md backs up your files and shows a warning with the backup path.
 
 ## Themes
 
