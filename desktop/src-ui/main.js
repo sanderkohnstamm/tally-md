@@ -10,6 +10,9 @@ import { palettes, applyPalette } from './themes.js';
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWindow } = window.__TAURI__.window;
 
+const isLinux = navigator.platform.includes('Linux');
+if (isLinux) document.body.classList.add('platform-linux');
+
 // Clickable links
 const urlRegex = /https?:\/\/[^\s)>\]]+/g;
 const linkMark = Decoration.mark({ class: 'cm-clickable-link' });
@@ -79,7 +82,6 @@ const headingFold = foldService.of((state, lineStart, lineEnd) => {
 const panes = ['todo', 'today', 'done'];
 const views = { todo: null, today: null, done: null };
 let focusedPane = 'todo';
-let doneVisible = true;
 let currentPalette = 0;
 let statusTimeout = null;
 let autoSaveTimeout = null;
@@ -185,29 +187,8 @@ async function completeItem() {
     });
     await save(true);
     showMessage('today → done');
-  }
-}
-
-async function sendBack() {
-  if (focusedPane === 'today') {
-    // today -> todo (send back)
-    const source = views.today.state.doc.toString();
-    const target = views.todo.state.doc.toString();
-    const cursorLine = getCursorLine(views.today);
-    const result = await invoke('recover_item', { source, target, cursorLine, fromDone: false });
-
-    const cursorPos = Math.min(views.today.state.selection.main.head, result.source.length);
-    views.today.dispatch({
-      changes: { from: 0, to: views.today.state.doc.length, insert: result.source },
-      selection: { anchor: cursorPos },
-    });
-    views.todo.dispatch({
-      changes: { from: 0, to: views.todo.state.doc.length, insert: result.target },
-    });
-    await save(true);
-    showMessage('today → todo');
   } else if (focusedPane === 'done') {
-    // done -> todo (recover)
+    // done -> todo (cycle back)
     const source = views.done.state.doc.toString();
     const target = views.todo.state.doc.toString();
     const cursorLine = getCursorLine(views.done);
@@ -245,36 +226,6 @@ async function skipToDone() {
   showMessage('todo → done');
 }
 
-function toggleWrap(view, mark) {
-  const { from, to } = view.state.selection.main;
-  const len = mark.length;
-  const doc = view.state.doc;
-
-  if (from >= len && to + len <= doc.length) {
-    const before = doc.sliceString(from - len, from);
-    const after = doc.sliceString(to, to + len);
-    if (before === mark && after === mark) {
-      view.dispatch({
-        changes: [
-          { from: from - len, to: from, insert: '' },
-          { from: to, to: to + len, insert: '' },
-        ],
-        selection: { anchor: from - len, head: to - len },
-      });
-      return true;
-    }
-  }
-
-  view.dispatch({
-    changes: [
-      { from, insert: mark },
-      { from: to, insert: mark },
-    ],
-    selection: { anchor: from + len, head: to + len },
-  });
-  return true;
-}
-
 function createEditor(parent, content, pane) {
   const changeListener = EditorView.updateListener.of((update) => {
     if (update.docChanged) {
@@ -291,10 +242,7 @@ function createEditor(parent, content, pane) {
   const editorActions = {
     save: () => { save(); return true; },
     moveForward: () => { completeItem(); return true; },
-    sendBack: () => { sendBack(); return true; },
     skipToDone: () => { skipToDone(); return true; },
-    bold: (view) => toggleWrap(view, '**'),
-    italic: (view) => toggleWrap(view, '*'),
     toggleFold: (view) => { toggleFold(view); return true; },
     toggleFoldAll: (view) => {
       const hasFolded = foldedRanges(view.state).size > 0;
@@ -326,34 +274,6 @@ function createEditor(parent, content, pane) {
   });
 
   return new EditorView({ state, parent });
-}
-
-function toggleDonePane() {
-  doneVisible = !doneVisible;
-  const donePane = document.getElementById('done-pane');
-  const dividers = document.querySelectorAll('.divider');
-  if (doneVisible) {
-    donePane.style.display = '';
-    dividers[1].style.display = '';
-    showMessage('Done pane shown');
-  } else {
-    donePane.style.display = 'none';
-    dividers[1].style.display = 'none';
-    if (focusedPane === 'done') {
-      focusedPane = 'today';
-      updateFocus();
-      views.today.focus();
-    }
-    showMessage('Done pane hidden');
-  }
-}
-
-function cyclePalette() {
-  currentPalette = (currentPalette + 1) % palettes.length;
-  const p = palettes[currentPalette];
-  applyPalette(p);
-  saveThemeToSettings(currentPalette);
-  showMessage(`Theme: ${p.name}`);
 }
 
 async function saveSettingsToBackend() {
@@ -515,34 +435,24 @@ async function savePaneSizes() {
 const DEFAULT_KEYBINDINGS = {
   save: 'Mod-s',
   moveForward: 'Mod-Enter',
-  sendBack: 'Mod-Shift-Enter',
   skipToDone: 'Mod-Shift-d',
-  bold: 'Mod-b',
-  italic: 'Mod-i',
   toggleFold: 'Mod-e',
   toggleFoldAll: 'Mod-Shift-e',
   cyclePane: 'Mod-\\',
-  cyclePaneBack: 'Mod-Shift-\\',
-  toggleDonePane: 'Mod-Shift-b',
-  sync: 'Mod-Shift-s',
-  cycleTheme: 'Mod-k',
+  gitPull: 'Mod-Shift-p',
+  gitPush: 'Mod-p',
   openSettings: 'Mod-,',
 };
 
 const ACTION_LABELS = {
   save: 'Save',
   moveForward: 'Move forward',
-  sendBack: 'Send back',
   skipToDone: 'Skip to done',
-  bold: 'Bold',
-  italic: 'Italic',
   toggleFold: 'Toggle fold',
   toggleFoldAll: 'Toggle fold all',
   cyclePane: 'Next pane',
-  cyclePaneBack: 'Previous pane',
-  toggleDonePane: 'Toggle done pane',
-  sync: 'Git sync',
-  cycleTheme: 'Cycle theme',
+  gitPull: 'Git pull',
+  gitPush: 'Git push',
   openSettings: 'Settings',
 };
 
@@ -586,26 +496,51 @@ async function gitSync(silent) {
   if (settingsState.storageMode !== 'git') return;
   isSyncing = true;
   setSyncState('active');
-  updateSyncStatus('syncing...');
+
   try {
-    const result = await invoke('git_sync_full');
+    // Save current editor content to disk first
+    updateSyncStatus('pushing...');
+    await invoke('save_files', {
+      todo: views.todo.state.doc.toString(),
+      today: views.today.state.doc.toString(),
+      done: views.done.state.doc.toString(),
+    });
+    const pushResult = await invoke('git_push');
+    if (!silent) showMessage(pushResult);
+  } catch (e) {
+    if (!silent) showMessage(`Push error: ${e}`);
+  }
+
+  try {
+    updateSyncStatus('pulling...');
+    const pullResult = await invoke('git_pull');
     updateSyncStatus('');
-    if (result.includes('conflicts')) {
+    if (pullResult.includes('conflicts')) {
       setSyncState('error');
-      showConflictWarning(result);
+      showConflictWarning(pullResult);
     } else {
       setSyncState('ok');
       hideConflictWarning();
     }
-    if (!silent) showMessage(result);
+    if (!silent) showMessage(pullResult);
   } catch (e) {
-    updateSyncStatus(silent ? '' : 'sync error');
+    updateSyncStatus(silent ? '' : 'pull error');
     setSyncState('error');
-    if (!silent) showMessage(`Sync error: ${e}`);
-  } finally {
-    // eslint-disable-next-line require-atomic-updates
-    isSyncing = false;
+    if (!silent) showMessage(`Pull error: ${e}`);
   }
+
+  // Reload files from disk
+  try {
+    if (views.todo) {
+      const files = await invoke('load_files');
+      views.todo.dispatch({ changes: { from: 0, to: views.todo.state.doc.length, insert: files.todo } });
+      views.today.dispatch({ changes: { from: 0, to: views.today.state.doc.length, insert: files.today } });
+      views.done.dispatch({ changes: { from: 0, to: views.done.state.doc.length, insert: files.done } });
+    }
+  } catch { /* ignored */ }
+
+  // eslint-disable-next-line require-atomic-updates
+  isSyncing = false;
 }
 
 async function gitPull(silent) {
@@ -638,6 +573,31 @@ async function gitPull(silent) {
       views.done.dispatch({ changes: { from: 0, to: views.done.state.doc.length, insert: files.done } });
     }
   } catch { /* ignored */ }
+  // eslint-disable-next-line require-atomic-updates
+  isSyncing = false;
+}
+
+async function gitPushOnly(silent) {
+  if (isSyncing) return;
+  if (settingsState.storageMode !== 'git') return;
+  isSyncing = true;
+  setSyncState('active');
+  updateSyncStatus('pushing...');
+  try {
+    await invoke('save_files', {
+      todo: views.todo.state.doc.toString(),
+      today: views.today.state.doc.toString(),
+      done: views.done.state.doc.toString(),
+    });
+    const result = await invoke('git_push');
+    updateSyncStatus('');
+    setSyncState('ok');
+    if (!silent) showMessage(result);
+  } catch (e) {
+    updateSyncStatus(silent ? '' : 'push error');
+    setSyncState('error');
+    if (!silent) showMessage(`Push error: ${e}`);
+  }
   // eslint-disable-next-line require-atomic-updates
   isSyncing = false;
 }
@@ -1032,13 +992,9 @@ function rebuildEditors() {
 }
 
 function cyclePane(direction) {
-  const visible = panes.filter(p => {
-    if (p === 'done' && !doneVisible) return false;
-    return true;
-  });
-  const idx = visible.indexOf(focusedPane);
-  const next = (idx + direction + visible.length) % visible.length;
-  focusedPane = visible[next];
+  const idx = panes.indexOf(focusedPane);
+  const next = (idx + direction + panes.length) % panes.length;
+  focusedPane = panes[next];
   updateFocus();
   views[focusedPane].focus();
 }
@@ -1067,16 +1023,13 @@ function getKey(action) {
 // Global keyboard shortcuts
 const globalActions = {
   cyclePane: () => cyclePane(1),
-  cyclePaneBack: () => cyclePane(-1),
-  sync: () => gitSync(false),
-  toggleDonePane: () => toggleDonePane(),
-  cycleTheme: () => cyclePalette(),
+  gitPull: () => gitPull(false),
+  gitPush: () => gitPushOnly(false),
   openSettings: () => openSettings(false),
 };
 
 document.addEventListener('keydown', (e) => {
-  // Check shift variants first (cyclePaneBack before cyclePane)
-  const orderedActions = ['cyclePaneBack', 'sync', 'toggleDonePane', 'cyclePane', 'cycleTheme', 'openSettings'];
+  const orderedActions = ['gitPull', 'gitPush', 'cyclePane', 'openSettings'];
   for (const action of orderedActions) {
     if (matchesKey(getKey(action), e)) {
       e.preventDefault();
@@ -1118,11 +1071,11 @@ function setHelpText() {
   const kb = settingsState.keybindings;
   const items = [
     [kb.moveForward, 'move →'],
-    [kb.sendBack, 'send ←'],
     [kb.skipToDone, 'skip→done'],
     [kb.cyclePane, 'pane'],
     [kb.save, 'save'],
-    [kb.sync, 'sync'],
+    [kb.gitPull, 'pull'],
+    [kb.gitPush, 'push'],
     [kb.openSettings, 'settings'],
   ];
   document.getElementById('status-help').textContent =
@@ -1186,32 +1139,27 @@ async function init() {
   updateFocus();
   views.todo.focus();
 
-  // Title bar window controls
-  const appWindow = getCurrentWindow();
-  document.getElementById('btn-minimize').onclick = () => appWindow.minimize();
-  document.getElementById('btn-maximize').onclick = async () => {
-    if (await appWindow.isMaximized()) {
-      appWindow.unmaximize();
-    } else {
-      appWindow.maximize();
-    }
-  };
-  document.getElementById('btn-close').onclick = () => appWindow.close();
+  // Title bar — native traffic lights on macOS, custom controls on Linux
+  if (isLinux) {
+    const appWindow = getCurrentWindow();
+    document.getElementById('btn-minimize').onclick = () => appWindow.minimize();
+    document.getElementById('btn-maximize').onclick = async () => {
+      if (await appWindow.isMaximized()) appWindow.unmaximize();
+      else appWindow.maximize();
+    };
+    document.getElementById('btn-close').onclick = () => appWindow.close();
 
-  // Drag region — use startDragging for Linux compatibility
-  const titleBar = document.getElementById('title-bar');
-  titleBar.addEventListener('mousedown', (e) => {
-    if (e.target.closest('#title-controls')) return;
-    if (e.buttons === 1) appWindow.startDragging();
-  });
-  titleBar.addEventListener('dblclick', async (e) => {
-    if (e.target.closest('#title-controls')) return;
-    if (await appWindow.isMaximized()) {
-      appWindow.unmaximize();
-    } else {
-      appWindow.maximize();
-    }
-  });
+    const titleBar = document.getElementById('title-bar');
+    titleBar.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#title-controls')) return;
+      if (e.buttons === 1) appWindow.startDragging();
+    });
+    titleBar.addEventListener('dblclick', async (e) => {
+      if (e.target.closest('#title-controls')) return;
+      if (await appWindow.isMaximized()) appWindow.unmaximize();
+      else appWindow.maximize();
+    });
+  }
 
   document.getElementById('conflict-dismiss').onclick = () => hideConflictWarning();
 

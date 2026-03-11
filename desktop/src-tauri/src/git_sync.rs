@@ -3,10 +3,14 @@ use git2::{
 };
 use std::path::Path;
 
+// --- Token storage: keyring for release, file-based for debug ---
+
+#[cfg(not(debug_assertions))]
 const KEYRING_SERVICE: &str = "com.sanderkohnstamm.tallymd";
+#[cfg(not(debug_assertions))]
 const KEYRING_USER: &str = "git-token";
 
-/// Store a PAT in the OS keychain.
+#[cfg(not(debug_assertions))]
 pub fn store_token(token: &str) -> Result<(), String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         .map_err(|e| format!("Keyring init error: {e}"))?;
@@ -15,7 +19,7 @@ pub fn store_token(token: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to store token: {e}"))
 }
 
-/// Retrieve the PAT from the OS keychain.
+#[cfg(not(debug_assertions))]
 pub fn get_token() -> Result<String, String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         .map_err(|e| format!("Keyring init error: {e}"))?;
@@ -24,18 +28,61 @@ pub fn get_token() -> Result<String, String> {
         .map_err(|e| format!("No token stored: {e}"))
 }
 
-/// Check if a token is stored.
+#[cfg(not(debug_assertions))]
 pub fn has_token() -> bool {
     get_token().is_ok()
 }
 
-/// Delete token from keychain.
+#[cfg(not(debug_assertions))]
 pub fn delete_token() -> Result<(), String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         .map_err(|e| format!("Keyring init error: {e}"))?;
     entry
         .delete_credential()
         .map_err(|e| format!("Failed to delete token: {e}"))
+}
+
+// Debug builds: file-based token at ~/.tallymd/.token (avoids keychain prompts)
+
+#[cfg(debug_assertions)]
+fn token_path() -> std::path::PathBuf {
+    let dir = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".tallymd");
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join(".token")
+}
+
+#[cfg(debug_assertions)]
+pub fn store_token(token: &str) -> Result<(), String> {
+    std::fs::write(token_path(), token)
+        .map_err(|e| format!("Failed to store token: {e}"))
+}
+
+#[cfg(debug_assertions)]
+pub fn get_token() -> Result<String, String> {
+    let token = std::fs::read_to_string(token_path())
+        .map_err(|_| "No token stored".to_string())?;
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return Err("No token stored".to_string());
+    }
+    Ok(token)
+}
+
+#[cfg(debug_assertions)]
+pub fn has_token() -> bool {
+    get_token().is_ok()
+}
+
+#[cfg(debug_assertions)]
+pub fn delete_token() -> Result<(), String> {
+    let path = token_path();
+    if path.exists() {
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("Failed to delete token: {e}"))?;
+    }
+    Ok(())
 }
 
 fn make_callbacks(token: &str) -> RemoteCallbacks<'_> {

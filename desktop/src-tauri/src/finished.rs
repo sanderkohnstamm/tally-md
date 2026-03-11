@@ -34,14 +34,8 @@ pub fn move_item_forward(
         new_source.push("");
     }
 
-    // Append to target
-    let mut target = target_text.to_string();
-    if target.trim().is_empty() {
-        target = entry;
-    } else {
-        target.push('\n');
-        target.push_str(&entry);
-    }
+    // Insert into target at first blank line
+    let target = insert_at_first_gap(target_text, &entry);
 
     Some((new_source.join("\n"), target))
 }
@@ -85,27 +79,26 @@ pub fn move_item_back(
         new_source.push("");
     }
 
-    // Insert into target under matching parent
+    // Insert into target under matching parent, or at first gap
     let new_line = format!("- {clean_text}");
-    let mut target_lines: Vec<String> = if target_text.trim().is_empty() {
-        Vec::new()
+
+    let target = if let Some(ref crumb) = breadcrumb {
+        let mut target_lines: Vec<String> = if target_text.trim().is_empty() {
+            Vec::new()
+        } else {
+            target_text.lines().map(ToString::to_string).collect()
+        };
+        if let Some(pos) = find_parent_position(&target_lines, crumb) {
+            target_lines.insert(pos, new_line);
+            ensure_trailing_blank_line(target_lines).join("\n")
+        } else {
+            insert_at_first_gap(target_text, &new_line)
+        }
     } else {
-        target_text.lines().map(ToString::to_string).collect()
+        insert_at_first_gap(target_text, &new_line)
     };
 
-    let insert_pos = if let Some(ref crumb) = breadcrumb {
-        find_parent_position(&target_lines, crumb)
-    } else {
-        None
-    };
-
-    if let Some(pos) = insert_pos {
-        target_lines.insert(pos, new_line);
-    } else {
-        target_lines.push(new_line);
-    }
-
-    Some((new_source.join("\n"), target_lines.join("\n")))
+    Some((new_source.join("\n"), target))
 }
 
 /// Find position to insert an item below its parent heading/item in the target.
@@ -250,27 +243,26 @@ pub fn recover_item(
         new_finished.push("");
     }
 
-    // Insert into todo under matching parent
+    // Insert into todo under matching parent, or at first gap
     let new_line = format!("- {clean_text}");
-    let mut todo_lines: Vec<String> = if todo_text.trim().is_empty() {
-        Vec::new()
+
+    let todo_result = if let Some(ref crumb) = breadcrumb {
+        let mut todo_lines: Vec<String> = if todo_text.trim().is_empty() {
+            Vec::new()
+        } else {
+            todo_text.lines().map(ToString::to_string).collect()
+        };
+        if let Some(pos) = find_parent_position(&todo_lines, crumb) {
+            todo_lines.insert(pos, new_line);
+            ensure_trailing_blank_line(todo_lines).join("\n")
+        } else {
+            insert_at_first_gap(todo_text, &new_line)
+        }
     } else {
-        todo_text.lines().map(ToString::to_string).collect()
+        insert_at_first_gap(todo_text, &new_line)
     };
 
-    let insert_pos = if let Some(ref crumb) = breadcrumb {
-        find_parent_position(&todo_lines, crumb)
-    } else {
-        None
-    };
-
-    if let Some(pos) = insert_pos {
-        todo_lines.insert(pos, new_line);
-    } else {
-        todo_lines.push(new_line);
-    }
-
-    Some((new_finished.join("\n"), todo_lines.join("\n")))
+    Some((new_finished.join("\n"), todo_result))
 }
 
 /// Fill empty day headers between oldest existing date and today.
@@ -352,9 +344,14 @@ fn insert_into_finished(
             insert_at += 1;
         }
         lines.insert(insert_at, entry.to_string());
+        // Ensure blank line after the inserted item (section separator)
+        if insert_at + 1 >= lines.len() || !lines[insert_at + 1].trim().is_empty() {
+            lines.insert(insert_at + 1, String::new());
+        }
     } else if lines.is_empty() {
         lines.push(date_header);
         lines.push(entry.to_string());
+        lines.push(String::new());
     } else {
         // Insert at top (newest first)
         lines.insert(0, String::new());
@@ -362,7 +359,7 @@ fn insert_into_finished(
         lines.insert(0, date_header);
     }
 
-    lines.join("\n")
+    ensure_trailing_blank_line(lines).join("\n")
 }
 
 fn find_date_insert_position(lines: &[String], date: NaiveDate) -> usize {
@@ -413,6 +410,55 @@ fn parse_date_flexible(s: &str) -> Option<NaiveDate> {
     None
 }
 
+/// Insert an entry at the first available gap in the target text.
+/// A "gap" is a blank line, a heading boundary, or the end of the first item group.
+/// Always ensures a trailing blank line.
+fn insert_at_first_gap(target_text: &str, entry: &str) -> String {
+    let mut lines: Vec<String> = if target_text.trim().is_empty() {
+        Vec::new()
+    } else {
+        target_text.lines().map(ToString::to_string).collect()
+    };
+
+    if lines.is_empty() {
+        lines.push(entry.to_string());
+        lines.push(String::new());
+        return lines.join("\n");
+    }
+
+    // Walk the lines: find the first blank line or the first heading after
+    // we've seen at least one item. This places the entry at the end of
+    // the first section/group of items.
+    let mut saw_item = false;
+    let mut insert_pos = None;
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("- ") {
+            saw_item = true;
+        } else if saw_item && (trimmed.is_empty() || trimmed.starts_with('#')) {
+            // First gap or heading after the first group of items
+            insert_pos = Some(i);
+            break;
+        }
+    }
+
+    let pos = insert_pos.unwrap_or(lines.len());
+    lines.insert(pos, entry.to_string());
+
+    ensure_trailing_blank_line(lines).join("\n")
+}
+
+/// Ensure the lines end with exactly one blank line.
+fn ensure_trailing_blank_line(mut lines: Vec<String>) -> Vec<String> {
+    // Remove trailing blank lines
+    while lines.last().map_or(false, |l| l.trim().is_empty()) {
+        lines.pop();
+    }
+    // Add exactly one
+    lines.push(String::new());
+    lines
+}
+
 fn breadcrumb_for(lines: &[&str], line_idx: usize) -> Vec<String> {
     let line = lines[line_idx];
     let indent = line.len() - line.trim_start().len();
@@ -454,4 +500,32 @@ fn breadcrumb_for(lines: &[&str], line_idx: usize) -> Vec<String> {
 
     crumbs.reverse();
     crumbs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insert_at_first_gap() {
+        // No blank lines → append after last item + trailing blank
+        let result = insert_at_first_gap("- a\n- b", "- new");
+        assert_eq!(result, "- a\n- b\n- new\n");
+
+        // Blank line between items → insert at end of first group
+        let result = insert_at_first_gap("- a\n\n- b", "- new");
+        assert_eq!(result, "- a\n- new\n\n- b\n");
+
+        // Heading after items → insert before heading
+        let result = insert_at_first_gap("## H1\n- a\n## H2\n- b", "- new");
+        assert_eq!(result, "## H1\n- a\n- new\n## H2\n- b\n");
+
+        // Empty target
+        let result = insert_at_first_gap("", "- new");
+        assert_eq!(result, "- new\n");
+
+        // Target with just newlines
+        let result = insert_at_first_gap("\n\n", "- new");
+        assert_eq!(result, "- new\n");
+    }
 }

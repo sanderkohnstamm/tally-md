@@ -46,6 +46,26 @@ fn load_files() -> FilesPayload {
     let dir = todos_dir();
     let settings = settings::load();
 
+    // Seed welcome content on very first install
+    if !settings.setup_done && !dir.join("todo.md").exists() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(
+            dir.join("todo.md"),
+            "## Welcome to Tally.md\n\n\
+             - Check out the settings (gear icon or Cmd+,)\n\
+             - Try moving this item forward with Cmd+Enter\n\
+             - Set up git sync for backup\n\
+             - Organise tasks under headings\n\
+             - Delete items you don't need\n\n",
+        );
+        let _ = std::fs::write(
+            dir.join("today.md"),
+            "- Get started with Tally.md\n\
+             - Move an item here, then Cmd+Enter to mark done\n\n",
+        );
+        let _ = std::fs::write(dir.join("done.md"), "");
+    }
+
     let todo = std::fs::read_to_string(dir.join("todo.md")).unwrap_or_default();
     let today_content = std::fs::read_to_string(dir.join("today.md")).unwrap_or_default();
     let done_raw = std::fs::read_to_string(dir.join("done.md")).unwrap_or_default();
@@ -270,11 +290,11 @@ fn git_sync_full() -> Result<String, String> {
     let token = git_sync::get_token()?;
     let local_path = todos_dir().to_string_lossy().to_string();
 
-    // Pull first, then commit+push
-    let pull_msg = git_sync::pull(&s.git_repo, &local_path, &token)?;
+    // Push first (save local edits), then pull (get remote changes)
     let push_msg = git_sync::commit_and_push(&s.git_repo, &local_path, &token)?;
+    let pull_msg = git_sync::pull(&s.git_repo, &local_path, &token)?;
 
-    Ok(format!("{pull_msg} | {push_msg}"))
+    Ok(format!("{push_msg} | {pull_msg}"))
 }
 
 #[tauri::command]
@@ -306,6 +326,18 @@ fn open_url(url: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            // On Linux, disable native decorations so our custom title bar is used
+            #[cfg(target_os = "linux")]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(false);
+                }
+            }
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             load_files,
             save_files,

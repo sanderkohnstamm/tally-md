@@ -1,4 +1,8 @@
 /desktop/src-tauri/target
+/desktop/src-tauri/gen
 /desktop/node_modules
 /desktop/ui/bundle.js
 /target
+*.xcuserdata
+*.xcworkspacedata
+DerivedData/
