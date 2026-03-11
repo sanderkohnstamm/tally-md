@@ -4,16 +4,16 @@ use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Settings {
-    pub storage_mode: String,       // "local" or "git"
-    pub local_path: String,         // custom path for local storage
-    pub git_repo: String,           // git repo URL
-    pub git_repo_name: String,      // repo name for git storage (e.g. "tally-md-log", "tally-md-work")
-    pub theme_index: usize,         // index into palettes array
-    pub date_format: String,        // e.g. "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"
-    pub layout: String,             // "horizontal" or "vertical"
-    pub pane_sizes: Vec<f64>,       // [todo%, today%, done%] — stored as 0-100
-    pub sync_interval: u64,         // auto-sync interval in minutes (0 = disabled)
-    pub setup_done: bool,           // whether first-time setup has been completed
+    pub storage_mode: String,  // "local" or "git"
+    pub local_path: String,    // custom path for local storage
+    pub git_repo: String,      // git repo URL
+    pub git_repo_name: String, // repo name for git storage (e.g. "tally-md-log", "tally-md-work")
+    pub theme_index: usize,    // index into palettes array
+    pub date_format: String,   // e.g. "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"
+    pub layout: String,        // "horizontal" or "vertical"
+    pub pane_sizes: Vec<f64>,  // [todo%, today%, done%] — stored as 0-100
+    pub sync_interval: u64,    // auto-sync interval in minutes (0 = disabled)
+    pub setup_done: bool,      // whether first-time setup has been completed
     #[serde(default = "default_keybindings")]
     pub keybindings: HashMap<String, String>, // action -> key string
 }
@@ -80,9 +80,8 @@ pub fn load() -> Settings {
 pub fn save(settings: &Settings) -> Result<(), String> {
     let path = settings_path();
     let json = serde_json::to_string_pretty(settings)
-        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-    std::fs::write(&path, json)
-        .map_err(|e| format!("Failed to write settings: {}", e))?;
+        .map_err(|e| format!("Failed to serialize settings: {e}"))?;
+    std::fs::write(&path, json).map_err(|e| format!("Failed to write settings: {e}"))?;
 
     // Also save to repo dir so settings sync with git
     save_to_repo(settings)?;
@@ -103,7 +102,7 @@ fn save_to_repo(settings: &Settings) -> Result<(), String> {
 
     if repo_dir.exists() {
         let json = serde_json::to_string_pretty(settings)
-            .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+            .map_err(|e| format!("Failed to serialize settings: {e}"))?;
         let _ = std::fs::write(repo_dir.join("settings.json"), json);
     }
     Ok(())

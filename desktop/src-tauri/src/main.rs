@@ -4,20 +4,19 @@ mod finished;
 mod git_sync;
 mod settings;
 
-use std::path::PathBuf;
-use serde::Serialize;
 use chrono::Local;
+use serde::Serialize;
+use std::path::PathBuf;
 
 fn todos_dir() -> PathBuf {
     let s = settings::load();
     let path = if s.storage_mode == "git" && !s.git_repo_name.is_empty() {
         // Git repos are cloned into ~/.tallymd/repos/<repo_name>/
-        let base = dirs::home_dir()
+        dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".tallymd")
             .join("repos")
-            .join(&s.git_repo_name);
-        base
+            .join(&s.git_repo_name)
     } else {
         PathBuf::from(&s.local_path)
     };
@@ -52,33 +51,47 @@ fn load_files() -> FilesPayload {
     let done_raw = std::fs::read_to_string(dir.join("done.md")).unwrap_or_default();
 
     let today_date = Local::now().date_naive();
-    let done = if !done_raw.trim().is_empty() {
-        finished::fill_empty_days(&done_raw, today_date, &settings.date_format)
-    } else {
+    let done = if done_raw.trim().is_empty() {
         done_raw
+    } else {
+        finished::fill_empty_days(&done_raw, today_date, &settings.date_format)
     };
 
     let todo_path = dir.join("todo.md").to_string_lossy().to_string();
     let today_path = dir.join("today.md").to_string_lossy().to_string();
     let done_path = dir.join("done.md").to_string_lossy().to_string();
 
-    FilesPayload { todo, today: today_content, done, todo_path, today_path, done_path }
+    FilesPayload {
+        todo,
+        today: today_content,
+        done,
+        todo_path,
+        today_path,
+        done_path,
+    }
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn save_files(todo: String, today: String, done: String) -> Result<String, String> {
     let dir = todos_dir();
     std::fs::write(dir.join("todo.md"), &todo)
-        .map_err(|e| format!("Failed to save todo.md: {}", e))?;
+        .map_err(|e| format!("Failed to save todo.md: {e}"))?;
     std::fs::write(dir.join("today.md"), &today)
-        .map_err(|e| format!("Failed to save today.md: {}", e))?;
+        .map_err(|e| format!("Failed to save today.md: {e}"))?;
     std::fs::write(dir.join("done.md"), &done)
-        .map_err(|e| format!("Failed to save done.md: {}", e))?;
+        .map_err(|e| format!("Failed to save done.md: {e}"))?;
     Ok("Saved".to_string())
 }
 
 #[tauri::command]
-fn complete_item(source: String, target: String, cursor_line: usize, to_done: bool) -> CompleteResult {
+#[allow(clippy::needless_pass_by_value)]
+fn complete_item(
+    source: String,
+    target: String,
+    cursor_line: usize,
+    to_done: bool,
+) -> CompleteResult {
     let settings = settings::load();
     if to_done {
         let today = Local::now().date_naive();
@@ -111,7 +124,13 @@ fn complete_item(source: String, target: String, cursor_line: usize, to_done: bo
 }
 
 #[tauri::command]
-fn recover_item(source: String, target: String, cursor_line: usize, from_done: bool) -> CompleteResult {
+#[allow(clippy::needless_pass_by_value)]
+fn recover_item(
+    source: String,
+    target: String,
+    cursor_line: usize,
+    from_done: bool,
+) -> CompleteResult {
     if from_done {
         match finished::recover_item(&source, &target, cursor_line) {
             Some((new_source, new_target)) => CompleteResult {
@@ -142,6 +161,7 @@ fn recover_item(source: String, target: String, cursor_line: usize, from_done: b
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn reformat_dates(done_content: String, new_format: String) -> String {
     finished::reformat_date_headers(&done_content, &new_format)
 }
@@ -152,6 +172,7 @@ fn load_settings() -> settings::Settings {
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 fn save_settings(
     storage_mode: String,
     local_path: String,
@@ -185,6 +206,7 @@ fn save_settings(
 // --- Git sync commands ---
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn git_init_repo(repo_url: String, repo_name: String) -> Result<String, String> {
     let token = git_sync::get_token()?;
     let base = dirs::home_dir()
@@ -197,6 +219,7 @@ fn git_init_repo(repo_url: String, repo_name: String) -> Result<String, String> 
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn git_store_token(token: String) -> Result<String, String> {
     git_sync::store_token(&token)?;
     Ok("Token stored".to_string())
@@ -208,6 +231,7 @@ fn git_has_token() -> bool {
 }
 
 #[tauri::command]
+#[allow(clippy::unnecessary_wraps)]
 fn git_delete_token() -> Result<String, String> {
     git_sync::delete_token()?;
     Ok("Token deleted".to_string())
@@ -248,22 +272,32 @@ fn git_sync_full() -> Result<String, String> {
     let pull_msg = git_sync::pull(&s.git_repo, &local_path, &token)?;
     let push_msg = git_sync::commit_and_push(&s.git_repo, &local_path, &token)?;
 
-    Ok(format!("{} | {}", pull_msg, push_msg))
+    Ok(format!("{pull_msg} | {push_msg}"))
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn open_url(url: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("xdg-open").arg(&url).spawn().map_err(|e| e.to_string())?;
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open").arg(&url).spawn().map_err(|e| e.to_string())?;
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd").args(["/c", "start", &url]).spawn().map_err(|e| e.to_string())?;
+        std::process::Command::new("cmd")
+            .args(["/c", "start", &url])
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }

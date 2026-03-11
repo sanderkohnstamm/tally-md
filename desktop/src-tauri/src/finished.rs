@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 
 /// Move item forward (todo→today): add parent breadcrumb in brackets.
-/// Returns (new_source, new_target).
+/// Returns `(new_source, new_target)`.
 pub fn move_item_forward(
     source_text: &str,
     target_text: &str,
@@ -22,9 +22,9 @@ pub fn move_item_forward(
     let breadcrumb = breadcrumb_for(&source_lines, cursor_line);
 
     let entry = if breadcrumb.is_empty() {
-        format!("- {}", text)
+        format!("- {text}")
     } else {
-        format!("- {} ({})", text, breadcrumb.join(" > "))
+        format!("- {text} ({})", breadcrumb.join(" > "))
     };
 
     // Remove line from source
@@ -47,7 +47,7 @@ pub fn move_item_forward(
 }
 
 /// Move item backward (today→todo): strip breadcrumb and place under matching parent.
-/// Returns (new_source, new_target).
+/// Returns `(new_source, new_target)`.
 pub fn move_item_back(
     source_text: &str,
     target_text: &str,
@@ -86,11 +86,11 @@ pub fn move_item_back(
     }
 
     // Insert into target under matching parent
-    let new_line = format!("- {}", clean_text);
+    let new_line = format!("- {clean_text}");
     let mut target_lines: Vec<String> = if target_text.trim().is_empty() {
         Vec::new()
     } else {
-        target_text.lines().map(|l| l.to_string()).collect()
+        target_text.lines().map(ToString::to_string).collect()
     };
 
     let insert_pos = if let Some(ref crumb) = breadcrumb {
@@ -101,8 +101,6 @@ pub fn move_item_back(
 
     if let Some(pos) = insert_pos {
         target_lines.insert(pos, new_line);
-    } else if target_lines.is_empty() {
-        target_lines.push(new_line);
     } else {
         target_lines.push(new_line);
     }
@@ -173,7 +171,7 @@ fn find_parent_position(lines: &[String], breadcrumb: &str) -> Option<usize> {
 }
 
 /// Complete a todo item: given the full todo text and cursor line,
-/// returns (new_todo_text, new_finished_text).
+/// returns `(new_todo_text, new_finished_text)`.
 pub fn complete_item(
     todo_text: &str,
     finished_text: &str,
@@ -196,9 +194,9 @@ pub fn complete_item(
     let breadcrumb = breadcrumb_for(&todo_lines, cursor_line);
 
     let entry = if breadcrumb.is_empty() {
-        format!("- {}", text)
+        format!("- {text}")
     } else {
-        format!("- {} ({})", text, breadcrumb.join(" > "))
+        format!("- {text} ({})", breadcrumb.join(" > "))
     };
 
     // Remove line from todo
@@ -253,11 +251,11 @@ pub fn recover_item(
     }
 
     // Insert into todo under matching parent
-    let new_line = format!("- {}", clean_text);
+    let new_line = format!("- {clean_text}");
     let mut todo_lines: Vec<String> = if todo_text.trim().is_empty() {
         Vec::new()
     } else {
-        todo_text.lines().map(|l| l.to_string()).collect()
+        todo_text.lines().map(ToString::to_string).collect()
     };
 
     let insert_pos = if let Some(ref crumb) = breadcrumb {
@@ -268,8 +266,6 @@ pub fn recover_item(
 
     if let Some(pos) = insert_pos {
         todo_lines.insert(pos, new_line);
-    } else if todo_lines.is_empty() {
-        todo_lines.push(new_line);
     } else {
         todo_lines.push(new_line);
     }
@@ -302,12 +298,13 @@ pub fn fill_empty_days(text: &str, today: NaiveDate, date_format: &str) -> Strin
         *dates.last().unwrap()
     };
 
-    let mut result_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+    let mut result_lines: Vec<String> = lines.iter().map(ToString::to_string).collect();
 
     let mut date = oldest;
     while date <= newest {
         if !dates.contains(&date) {
-            let header = format!("## {}", date.format(date_format));
+            let formatted = date.format(date_format);
+            let header = format!("## {formatted}");
             let pos = find_date_insert_position(&result_lines, date);
             result_lines.insert(pos, String::new());
             result_lines.insert(pos, header);
@@ -318,14 +315,20 @@ pub fn fill_empty_days(text: &str, today: NaiveDate, date_format: &str) -> Strin
     result_lines.join("\n")
 }
 
-fn insert_into_finished(finished_text: &str, today: NaiveDate, entry: &str, date_format: &str) -> String {
+fn insert_into_finished(
+    finished_text: &str,
+    today: NaiveDate,
+    entry: &str,
+    date_format: &str,
+) -> String {
     let mut lines: Vec<String> = if finished_text.trim().is_empty() {
         Vec::new()
     } else {
-        finished_text.lines().map(|l| l.to_string()).collect()
+        finished_text.lines().map(ToString::to_string).collect()
     };
 
-    let date_header = format!("## {}", today.format(date_format));
+    let formatted = today.format(date_format);
+    let date_header = format!("## {formatted}");
 
     // Find today's header — match by parsed date, not string, so format changes still work
     let header_idx = lines.iter().position(|l| {
@@ -382,18 +385,26 @@ pub fn reformat_date_headers(text: &str, new_format: &str) -> String {
     for line in &lines {
         if let Some(date_str) = line.strip_prefix("## ") {
             if let Some(date) = parse_date_flexible(date_str.trim()) {
-                result.push(format!("## {}", date.format(new_format)));
+                let formatted = date.format(new_format);
+                result.push(format!("## {formatted}"));
                 continue;
             }
         }
-        result.push(line.to_string());
+        result.push((*line).to_string());
     }
     result.join("\n")
 }
 
 /// Try parsing a date string in common formats.
 fn parse_date_flexible(s: &str) -> Option<NaiveDate> {
-    let formats = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y", "%B %d, %Y", "%d %B %Y"];
+    let formats = [
+        "%Y-%m-%d",
+        "%d-%m-%Y",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%B %d, %Y",
+        "%d %B %Y",
+    ];
     for fmt in &formats {
         if let Ok(d) = NaiveDate::parse_from_str(s, fmt) {
             return Some(d);

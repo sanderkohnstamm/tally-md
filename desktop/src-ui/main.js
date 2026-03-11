@@ -2,7 +2,7 @@ import { EditorView, basicSetup } from 'codemirror';
 import { EditorState, RangeSetBuilder } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { keymap, drawSelection, Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { keymap, Decoration, ViewPlugin } from '@codemirror/view';
 import { indentWithTab } from '@codemirror/commands';
 import { foldService, foldAll, unfoldAll, toggleFold, foldedRanges } from '@codemirror/language';
 import { palettes, applyPalette } from './themes.js';
@@ -76,7 +76,7 @@ const headingFold = foldService.of((state, lineStart, lineEnd) => {
 });
 
 const panes = ['todo', 'today', 'done'];
-let views = { todo: null, today: null, done: null };
+const views = { todo: null, today: null, done: null };
 let focusedPane = 'todo';
 let doneVisible = true;
 let currentPalette = 0;
@@ -126,10 +126,6 @@ function clearDirty() {
   panes.forEach(p => {
     document.getElementById(`${p}-dirty`).style.display = 'none';
   });
-}
-
-function getActiveView() {
-  return views[focusedPane];
 }
 
 function getCursorLine(view) {
@@ -464,8 +460,8 @@ function initDividerDrag() {
       const startLeft = useVertical ? leftPane.offsetHeight : leftPane.offsetWidth;
       const startRight = useVertical ? rightPane.offsetHeight : rightPane.offsetWidth;
 
-      function onMove(e) {
-        const delta = (useVertical ? e.clientY : e.clientX) - startPos;
+      function onMove(evt) {
+        const delta = (useVertical ? evt.clientY : evt.clientX) - startPos;
         const newLeft = Math.max(50, startLeft + delta);
         const newRight = Math.max(50, startRight - delta);
         const leftPct = (newLeft / totalSize) * 100;
@@ -544,7 +540,7 @@ let syncState = 'ok'; // 'ok' | 'dirty' | 'error' | 'active'
 function updateStorageIndicator() {
   const el = document.getElementById('storage-mode');
   if (settingsState.storageMode === 'git') {
-    el.textContent = 'git: ' + (settingsState.gitRepoName || 'repo');
+    el.textContent = `git: ${settingsState.gitRepoName || 'repo'}`;
   } else {
     el.textContent = 'local';
   }
@@ -560,7 +556,7 @@ function applySyncColor() {
   const el = document.getElementById('storage-mode');
   el.className = '';
   if (settingsState.storageMode === 'git') {
-    el.classList.add('sync-' + syncState);
+    el.classList.add(`sync-${syncState}`);
   }
 }
 
@@ -589,8 +585,9 @@ async function gitSync(silent) {
   } catch (e) {
     updateSyncStatus(silent ? '' : 'sync error');
     setSyncState('error');
-    if (!silent) showMessage('Sync error: ' + e);
+    if (!silent) showMessage(`Sync error: ${e}`);
   } finally {
+    // eslint-disable-next-line require-atomic-updates
     isSyncing = false;
   }
 }
@@ -614,7 +611,7 @@ async function gitPull(silent) {
   } catch (e) {
     updateSyncStatus(silent ? '' : 'pull error');
     setSyncState('error');
-    if (!silent) showMessage('Pull error: ' + e);
+    if (!silent) showMessage(`Pull error: ${e}`);
   }
   // Always reload files — even if pull errored, local files may be fine
   try {
@@ -624,28 +621,9 @@ async function gitPull(silent) {
       views.today.dispatch({ changes: { from: 0, to: views.today.state.doc.length, insert: files.today } });
       views.done.dispatch({ changes: { from: 0, to: views.done.state.doc.length, insert: files.done } });
     }
-  } catch (_) {}
+  } catch { /* ignored */ }
+  // eslint-disable-next-line require-atomic-updates
   isSyncing = false;
-}
-
-async function gitPush(silent) {
-  if (isSyncing) return;
-  if (settingsState.storageMode !== 'git') return;
-  isSyncing = true;
-  setSyncState('active');
-  updateSyncStatus('pushing...');
-  try {
-    const result = await invoke('git_push');
-    updateSyncStatus('');
-    setSyncState('ok');
-    if (!silent) showMessage(result);
-  } catch (e) {
-    updateSyncStatus('push error');
-    setSyncState('error');
-    if (!silent) showMessage('Push error: ' + e);
-  } finally {
-    isSyncing = false;
-  }
 }
 
 function scheduleIdleSync() {
@@ -765,7 +743,7 @@ function openSettings(isFirstTime) {
       try {
         await invoke('git_store_token', { token: tokenVal });
       } catch (e) {
-        initStatus.textContent = 'Token error: ' + e;
+        initStatus.textContent = `Token error: ${e}`;
         initBtn.disabled = false;
         return;
       }
@@ -780,7 +758,7 @@ function openSettings(isFirstTime) {
       const result = await invoke('git_init_repo', { repoUrl, repoName });
       initStatus.textContent = result;
     } catch (e) {
-      initStatus.textContent = 'Error: ' + e;
+      initStatus.textContent = `Error: ${e}`;
     } finally {
       initBtn.disabled = false;
     }
@@ -800,7 +778,7 @@ function openSettings(isFirstTime) {
   picker.innerHTML = '';
   palettes.forEach((p, i) => {
     const swatch = document.createElement('div');
-    swatch.className = 'theme-swatch' + (i === settingsState.themeIndex ? ' active' : '');
+    swatch.className = `theme-swatch${i === settingsState.themeIndex ? ' active' : ''}`;
     swatch.style.background = p.bg;
     swatch.style.borderColor = i === settingsState.themeIndex ? p.text : p.border;
     swatch.title = p.name;
@@ -873,10 +851,11 @@ function openSettings(isFirstTime) {
       try {
         await invoke('git_store_token', { token: tokenVal });
       } catch (e) {
-        showMessage('Failed to store token: ' + e);
+        showMessage(`Failed to store token: ${e}`);
       }
     }
 
+    // eslint-disable-next-line require-atomic-updates
     settingsState.setupDone = true;
     await saveSettingsToBackend();
 
