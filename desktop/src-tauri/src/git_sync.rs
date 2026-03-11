@@ -1,6 +1,5 @@
 use git2::{
-    Cred, Direction, FetchOptions, PushOptions, RemoteCallbacks, Repository, Signature,
-    StatusOptions,
+    Cred, FetchOptions, PushOptions, RemoteCallbacks, Repository, Signature, StatusOptions,
 };
 use std::path::Path;
 
@@ -48,77 +47,128 @@ fn make_callbacks(token: &str) -> RemoteCallbacks<'_> {
     callbacks
 }
 
-/// Initialize a repo: ensure directory exists, create the 3 .md files if missing,
-/// init git, commit, and push. If the repo already exists, just ensure the files exist.
+/// Ensure the 4 expected files exist, creating only the missing ones.
+fn ensure_files_exist(path: &Path) -> Result<(), String> {
+    for name in &["todo.md", "today.md", "done.md"] {
+        let file_path = path.join(name);
+        if !file_path.exists() {
+            std::fs::write(&file_path, "")
+                .map_err(|e| format!("Failed to create {name}: {e}"))?;
+        }
+    }
+    if !path.join("settings.json").exists() {
+        let settings = crate::settings::load();
+        let json = serde_json::to_string_pretty(&settings).unwrap_or_default();
+        std::fs::write(path.join("settings.json"), &json)
+            .map_err(|e| format!("Failed to write settings.json: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Stage and commit any dirty files. Returns whether a commit was made.
+fn commit_if_dirty(repo: &Repository, token: &str, message: &str) -> Result<bool, String> {
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true);
+    let statuses = repo
+        .statuses(Some(&mut opts))
+        .map_err(|e| format!("Status error: {e}"))?;
+
+    if statuses.is_empty() {
+        return Ok(false);
+    }
+
+    let mut index = repo.index().map_err(|e| format!("Index error: {e}"))?;
+    index
+        .add_all(
+            ["*.md", "settings.json"].iter(),
+            git2::IndexAddOption::DEFAULT,
+            None,
+        )
+        .map_err(|e| format!("Add error: {e}"))?;
+    index
+        .write()
+        .map_err(|e| format!("Index write error: {e}"))?;
+    let tree_oid = index
+        .write_tree()
+        .map_err(|e| format!("Write tree error: {e}"))?;
+    let tree = repo
+        .find_tree(tree_oid)
+        .map_err(|e| format!("Find tree error: {e}"))?;
+    let sig =
+        Signature::now("Tally.md", "tally@local").map_err(|e| format!("Sig error: {e}"))?;
+    let parents = match repo.head().and_then(|h| h.peel_to_commit()) {
+        Ok(p) => vec![p],
+        Err(_) => vec![],
+    };
+    let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parent_refs)
+        .map_err(|e| format!("Commit error: {e}"))?;
+    do_push(repo, token)?;
+    Ok(true)
+}
+
+/// Ensure the repo is on branch "main". If HEAD points to another branch, rename it.
+fn ensure_main_branch(repo: &Repository) -> Result<(), String> {
+    let head = match repo.head() {
+        Ok(h) => h,
+        Err(_) => return Ok(()),
+    };
+    let branch_name = head.shorthand().unwrap_or("main").to_string();
+    if branch_name == "main" {
+        return Ok(());
+    }
+    let mut branch = repo
+        .find_branch(&branch_name, git2::BranchType::Local)
+        .map_err(|e| format!("Find branch error: {e}"))?;
+    branch
+        .rename("main", true)
+        .map_err(|e| format!("Rename branch to main: {e}"))?;
+    Ok(())
+}
+
+/// Initialize a repo: if the remote already exists, clone it and only add missing files.
+/// If no remote content, init fresh. Always uses branch "main".
 pub fn init_repo(repo_url: &str, local_path: &str, token: &str) -> Result<String, String> {
     let path = Path::new(local_path);
     let _ = std::fs::create_dir_all(path);
 
-    // Create the 3 md files if they don't exist
-    for name in &["todo.md", "today.md", "done.md"] {
-        let file_path = path.join(name);
-        if !file_path.exists() {
-            std::fs::write(&file_path, "").map_err(|e| format!("Failed to create {name}: {e}"))?;
-        }
-    }
-
-    // Copy current settings into the repo
-    let settings = crate::settings::load();
-    let json = serde_json::to_string_pretty(&settings).unwrap_or_default();
-    let _ = std::fs::write(path.join("settings.json"), json);
-
+    // Already have a local git repo — just ensure files exist and sync
     if path.join(".git").exists() {
-        // Repo already initialized — just ensure files are committed and pushed
         let repo = Repository::open(path).map_err(|e| format!("Failed to open repo: {e}"))?;
-        // Check if there are uncommitted files
-        let mut opts = StatusOptions::new();
-        opts.include_untracked(true);
-        let statuses = repo
-            .statuses(Some(&mut opts))
-            .map_err(|e| format!("Status error: {e}"))?;
-        if !statuses.is_empty() {
-            // Stage and commit
-            let mut index = repo.index().map_err(|e| format!("Index error: {e}"))?;
-            index
-                .add_all(
-                    ["*.md", "settings.json"].iter(),
-                    git2::IndexAddOption::DEFAULT,
-                    None,
-                )
-                .map_err(|e| format!("Add error: {e}"))?;
-            index
-                .write()
-                .map_err(|e| format!("Index write error: {e}"))?;
-            let tree_oid = index
-                .write_tree()
-                .map_err(|e| format!("Write tree error: {e}"))?;
-            let tree = repo
-                .find_tree(tree_oid)
-                .map_err(|e| format!("Find tree error: {e}"))?;
-            let sig =
-                Signature::now("Tally.md", "tally@local").map_err(|e| format!("Sig error: {e}"))?;
-            let parents = match repo.head().and_then(|h| h.peel_to_commit()) {
-                Ok(p) => vec![p],
-                Err(_) => vec![],
-            };
-            let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-            repo.commit(
-                Some("HEAD"),
-                &sig,
-                &sig,
-                "Add missing files",
-                &tree,
-                &parent_refs,
-            )
-            .map_err(|e| format!("Commit error: {e}"))?;
-            do_push(&repo, token)?;
-        }
+        ensure_main_branch(&repo)?;
+        ensure_files_exist(path)?;
+        commit_if_dirty(&repo, token, "Add missing files")?;
         return Ok("Repo already initialized".to_string());
     }
 
-    // Fresh init
-    init_and_push(path, repo_url, token)?;
-    Ok("Repo initialized and pushed".to_string())
+    // Try to clone the existing remote repo first
+    let clone_result = {
+        let callbacks = make_callbacks(token);
+        let mut fo = FetchOptions::new();
+        fo.remote_callbacks(callbacks);
+        let mut builder = git2::build::RepoBuilder::new();
+        builder.fetch_options(fo);
+        builder.branch("main");
+        // git2 needs an empty or non-existent directory to clone into
+        let _ = std::fs::remove_dir(path);
+        builder.clone(repo_url, path)
+    };
+
+    match clone_result {
+        Ok(repo) => {
+            ensure_main_branch(&repo)?;
+            ensure_files_exist(path)?;
+            commit_if_dirty(&repo, token, "Add missing files")?;
+            Ok("Cloned existing repo".to_string())
+        }
+        Err(_) => {
+            // Clone failed (empty repo or doesn't exist yet) — init fresh
+            let _ = std::fs::create_dir_all(path);
+            ensure_files_exist(path)?;
+            init_and_push(path, repo_url, token)?;
+            Ok("Repo initialized and pushed".to_string())
+        }
+    }
 }
 
 /// Clone a repo if `local_path` doesn't exist or is empty, otherwise open it.
@@ -442,30 +492,8 @@ fn do_push(repo: &Repository, token: &str) -> Result<(), String> {
         .map_err(|e| format!("Push failed: {e}"))
 }
 
+/// Always use "main" as the branch name.
 #[allow(clippy::unnecessary_wraps)]
-fn detect_default_branch(remote: &mut git2::Remote, token: &str) -> Result<String, String> {
-    let callbacks = make_callbacks(token);
-    if remote
-        .connect_auth(Direction::Fetch, Some(callbacks), None)
-        .is_err()
-    {
-        // Can't connect — fall back to "main"
-        return Ok("main".to_string());
-    }
-
-    let default = remote
-        .default_branch()
-        .ok()
-        .and_then(|b| b.as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "refs/heads/main".to_string());
-
-    remote.disconnect().ok();
-
-    // Strip refs/heads/ prefix
-    let branch = default
-        .strip_prefix("refs/heads/")
-        .unwrap_or(&default)
-        .to_string();
-
-    Ok(branch)
+fn detect_default_branch(_remote: &mut git2::Remote, _token: &str) -> Result<String, String> {
+    Ok("main".to_string())
 }
