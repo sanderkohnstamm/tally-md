@@ -1,4 +1,3 @@
-/target
-/src-tauri/target
-/node_modules
-/ui/bundle.js
+/desktop/src-tauri/target
+/desktop/node_modules
+/desktop/ui/bundle.js
