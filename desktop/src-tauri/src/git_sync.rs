@@ -246,7 +246,22 @@ pub fn pull(repo_url: &str, local_path: &str, token: &str) -> Result<String, Str
         return Ok("Pulled (fast-forward)".to_string());
     }
 
-    // Normal merge — for simplicity, force-checkout theirs on conflict
+    // Backup local files before merge in case of conflicts
+    let path = Path::new(local_path);
+    let backup_dir = path.join(".backup");
+    let _ = std::fs::create_dir_all(&backup_dir);
+    let mut backed_up = Vec::new();
+    for name in &["todo.md", "today.md", "done.md"] {
+        let src = path.join(name);
+        let dst = backup_dir.join(name);
+        if src.exists() {
+            if let Ok(_) = std::fs::copy(&src, &dst) {
+                backed_up.push(name.to_string());
+            }
+        }
+    }
+
+    // Normal merge — force-checkout theirs on conflict
     let their_commit = repo
         .find_commit(fetch_commit.id())
         .map_err(|e| format!("Find commit error: {}", e))?;
@@ -256,6 +271,12 @@ pub fn pull(repo_url: &str, local_path: &str, token: &str) -> Result<String, Str
         Some(git2::build::CheckoutBuilder::default().force()),
     )
     .map_err(|e| format!("Merge error: {}", e))?;
+
+    // Check if index has conflicts
+    let index_conflicts = repo.index()
+        .ok()
+        .map(|idx| idx.has_conflicts())
+        .unwrap_or(false);
 
     // Auto-commit the merge
     let sig = Signature::now("Tally.md", "tally@local")
@@ -285,7 +306,27 @@ pub fn pull(repo_url: &str, local_path: &str, token: &str) -> Result<String, Str
     repo.cleanup_state()
         .map_err(|e| format!("Cleanup error: {}", e))?;
 
-    Ok("Pulled (merged)".to_string())
+    // Detect if local files changed after merge (content differs from backup)
+    let mut had_conflicts = index_conflicts;
+    if !had_conflicts {
+        for name in &["todo.md", "today.md", "done.md"] {
+            let current = std::fs::read_to_string(path.join(name)).unwrap_or_default();
+            let backup = std::fs::read_to_string(backup_dir.join(name)).unwrap_or_default();
+            if current != backup {
+                had_conflicts = true;
+                break;
+            }
+        }
+    }
+
+    if had_conflicts {
+        let backup_path = backup_dir.to_string_lossy().to_string();
+        Ok(format!("Pulled (merged with conflicts). Local backup at {}", backup_path))
+    } else {
+        // Clean up backup if no conflicts
+        let _ = std::fs::remove_dir_all(&backup_dir);
+        Ok("Pulled (merged)".to_string())
+    }
 }
 
 /// Commit all changed .md files and push.

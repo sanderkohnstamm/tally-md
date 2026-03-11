@@ -90,6 +90,25 @@ function showMessage(msg) {
   statusTimeout = setTimeout(() => { el.textContent = ''; }, 3000);
 }
 
+function showConflictWarning(msg) {
+  // Extract backup path from message
+  const match = msg.match(/backup at (.+)$/);
+  const backupPath = match ? match[1] : '';
+  const bar = document.getElementById('conflict-bar');
+  if (bar) {
+    bar.style.display = 'flex';
+    bar.querySelector('.conflict-text').textContent =
+      'Merge conflict — remote changes overwrote local edits.';
+    bar.querySelector('.conflict-path').textContent =
+      backupPath ? `Backup saved to ${backupPath}` : '';
+  }
+}
+
+function hideConflictWarning() {
+  const bar = document.getElementById('conflict-bar');
+  if (bar) bar.style.display = 'none';
+}
+
 function updateFocus() {
   panes.forEach(p => {
     document.getElementById(`${p}-pane`).classList.toggle('focused', focusedPane === p);
@@ -559,7 +578,13 @@ async function gitSync(silent) {
   try {
     const result = await invoke('git_sync_full');
     updateSyncStatus('');
-    setSyncState('ok');
+    if (result.includes('conflicts')) {
+      setSyncState('error');
+      showConflictWarning(result);
+    } else {
+      setSyncState('ok');
+      hideConflictWarning();
+    }
     if (!silent) showMessage(result);
   } catch (e) {
     updateSyncStatus(silent ? '' : 'sync error');
@@ -579,7 +604,12 @@ async function gitPull(silent) {
   try {
     const result = await invoke('git_pull');
     updateSyncStatus('');
-    setSyncState('ok');
+    if (result.includes('conflicts')) {
+      setSyncState('error');
+      showConflictWarning(result);
+    } else {
+      setSyncState('ok');
+    }
     if (!silent) showMessage(result);
   } catch (e) {
     updateSyncStatus(silent ? '' : 'pull error');
@@ -1133,6 +1163,8 @@ async function init() {
   focusedPane = 'todo';
   updateFocus();
   views.todo.focus();
+
+  document.getElementById('conflict-dismiss').onclick = () => hideConflictWarning();
 
   updateStorageIndicator();
   if (!settings.setup_done) {

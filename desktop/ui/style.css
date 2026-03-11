@@ -469,6 +469,45 @@ html, body {
   50% { opacity: 0.6; }
 }
 
+/* Conflict warning bar */
+#conflict-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--red);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.conflict-text {
+  flex: 1;
+}
+
+.conflict-path {
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 11px;
+}
+
+#conflict-dismiss {
+  background: transparent;
+  border: 1px solid var(--bg);
+  color: var(--bg);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+#conflict-dismiss:hover {
+  opacity: 1;
+}
+
 /* Sync indicator in status bar */
 #storage-mode {
   transition: color 0.2s;
