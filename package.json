@@ -1,0 +1,19 @@
+{
+  "name": "tally-md",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src-ui/main.js --bundle --outfile=ui/bundle.js --format=iife --minify",
+    "dev": "cargo tauri dev",
+    "package": "cargo tauri build",
+    "watch": "esbuild src-ui/main.js --bundle --outfile=ui/bundle.js --format=iife --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/language-data": "^6.5.0",
+    "codemirror": "^6.0.0",
+    "@codemirror/theme-one-dark": "^6.1.0"
+  }
+}

@@ -1,0 +1,459 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #1e1e2e;
+  --surface: #181825;
+  --overlay: #313244;
+  --text: #cdd6f4;
+  --subtext: #a6adc8;
+  --blue: #89b4fa;
+  --green: #a6e3a1;
+  --mauve: #cba6f7;
+  --red: #f38ba8;
+  --yellow: #f9e2af;
+  --teal: #94e2d5;
+  --border: #45475a;
+  --status-bg: #11111b;
+  --selection-bg: rgba(137, 180, 250, 0.25);
+  --active-line: rgba(49, 50, 68, 0.5);
+  --code-bg: rgba(166, 227, 161, 0.1);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 14px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#panes {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#todo-pane {
+  flex: 40;
+}
+
+#today-pane {
+  flex: 30;
+}
+
+#done-pane {
+  flex: 30;
+}
+
+.divider {
+  background: var(--border);
+  flex-shrink: 0;
+  /* Thin visible line with wider grab area via padding */
+  min-width: 5px;
+  min-height: 5px;
+  background-clip: content-box;
+}
+
+/* Vertical dividers (side-by-side): pad horizontally */
+.divider.divider-col {
+  width: 1px;
+  padding: 0 2px;
+  cursor: col-resize;
+}
+
+/* Horizontal dividers (stacked): pad vertically */
+.divider.divider-row {
+  height: 1px;
+  padding: 2px 0;
+  cursor: row-resize;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  user-select: none;
+}
+
+.pane-title {
+  color: var(--subtext);
+  font-weight: 600;
+}
+
+.pane-badge {
+  color: var(--yellow);
+  font-size: 11px;
+}
+
+.pane.focused .pane-header {
+  background: var(--overlay);
+}
+
+.pane.focused .pane-title {
+  color: var(--blue);
+}
+
+/* CodeMirror containers */
+#todo-editor, #today-editor, #done-editor {
+  flex: 1;
+  overflow: hidden;
+}
+
+#todo-editor .cm-editor,
+#today-editor .cm-editor,
+#done-editor .cm-editor {
+  height: 100%;
+}
+
+/* Status bar */
+#status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+  background: var(--status-bg);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--subtext);
+  user-select: none;
+}
+
+#storage-mode {
+  color: var(--subtext);
+  opacity: 0.5;
+  font-size: 11px;
+  margin-right: 8px;
+}
+
+#status-message {
+  color: var(--green);
+}
+
+#status-help {
+  color: var(--subtext);
+  opacity: 0.7;
+}
+
+/* CodeMirror theme overrides */
+.cm-editor {
+  background: var(--bg) !important;
+}
+
+.cm-editor .cm-gutters {
+  background: var(--surface) !important;
+  border-right: 1px solid var(--border) !important;
+  color: var(--subtext) !important;
+}
+
+.cm-editor .cm-activeLineGutter {
+  background: var(--overlay) !important;
+}
+
+.cm-editor .cm-activeLine {
+  background: var(--active-line) !important;
+}
+
+.cm-editor .cm-cursor {
+  border-left-color: var(--text) !important;
+}
+
+.cm-editor .cm-selectionBackground {
+  background: var(--selection-bg) !important;
+}
+
+.cm-editor.cm-focused .cm-selectionBackground {
+  background: var(--selection-bg) !important;
+}
+
+.cm-editor .cm-content {
+  color: var(--text);
+  caret-color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 14px;
+  padding: 8px 0;
+}
+
+.cm-editor .cm-line {
+  padding: 0 8px;
+}
+
+/* Force all text to same color — no syntax highlighting */
+.cm-editor .cm-line * {
+  color: var(--text) !important;
+}
+
+.cm-editor .cm-header-1 { font-weight: bold; font-size: 1.3em; }
+.cm-editor .cm-header-2 { font-size: 1.15em; }
+.cm-editor .cm-strong { font-weight: bold; }
+.cm-editor .cm-em { font-style: italic; }
+.cm-editor .cm-strikethrough { text-decoration: line-through; }
+
+/* Clickable links */
+.cm-clickable-link {
+  text-decoration: underline;
+  text-decoration-color: var(--subtext);
+  text-underline-offset: 2px;
+}
+
+.cm-editor:not(.cm-focused) .cm-clickable-link,
+.cm-clickable-link:hover {
+  cursor: pointer;
+}
+
+/* Unfocused pane dimming */
+.pane:not(.focused) .cm-editor {
+  opacity: 0.7;
+}
+
+/* Settings panel */
+#settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+#settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px 32px;
+  min-width: 400px;
+  max-width: 500px;
+}
+
+#settings-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.settings-group {
+  margin-bottom: 16px;
+}
+
+.settings-label {
+  display: block;
+  color: var(--subtext);
+  font-size: 12px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-btn {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  background: var(--overlay);
+}
+
+.settings-btn.active {
+  border-color: var(--blue);
+  background: var(--overlay);
+}
+
+.settings-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.theme-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  position: relative;
+}
+
+.theme-swatch.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.settings-primary-btn {
+  background: var(--overlay);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.settings-primary-btn:hover {
+  background: var(--blue);
+  color: var(--bg);
+}
+
+.settings-secondary-btn {
+  background: transparent;
+  color: var(--subtext);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.settings-secondary-btn:hover {
+  color: var(--text);
+}
+
+.settings-link {
+  color: var(--blue);
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+.settings-link:hover {
+  text-decoration: underline;
+}
+
+.settings-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--subtext);
+  margin-top: 4px;
+}
+
+/* Shortcuts panel */
+#shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+
+#shortcuts-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px 32px;
+  min-width: 420px;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+#shortcuts-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcut-label {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.shortcut-key {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 100px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.shortcut-key:hover {
+  border-color: var(--blue);
+}
+
+.shortcut-key.recording {
+  border-color: var(--blue);
+  background: var(--overlay);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Sync indicator in status bar */
+#sync-status {
+  color: var(--subtext);
+  font-size: 11px;
+  margin-left: 8px;
+}

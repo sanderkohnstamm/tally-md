@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tally.md</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="panes">
+      <div class="pane" id="todo-pane">
+        <div class="pane-header">
+          <span class="pane-title">todo.md</span>
+          <span class="pane-badge" id="todo-dirty" style="display:none">[+]</span>
+        </div>
+        <div id="todo-editor"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="pane" id="today-pane">
+        <div class="pane-header">
+          <span class="pane-title">today.md</span>
+          <span class="pane-badge" id="today-dirty" style="display:none">[+]</span>
+        </div>
+        <div id="today-editor"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="pane" id="done-pane">
+        <div class="pane-header">
+          <span class="pane-title">done.md</span>
+          <span class="pane-badge" id="done-dirty" style="display:none">[+]</span>
+        </div>
+        <div id="done-editor"></div>
+      </div>
+    </div>
+    <div id="status-bar">
+      <span id="storage-mode"></span>
+      <span id="status-message">Ready</span>
+      <span id="sync-status"></span>
+      <span id="status-help"></span>
+    </div>
+  </div>
+
+  <!-- Settings panel overlay -->
+  <div id="settings-overlay" style="display:none">
+    <div id="settings-panel">
+      <h2 id="settings-title">Settings</h2>
+
+      <div class="settings-group">
+        <label class="settings-label">Storage</label>
+        <div class="settings-row">
+          <button class="settings-btn" id="btn-local" data-mode="local">Local folder</button>
+          <button class="settings-btn" id="btn-git" data-mode="git">Git repo</button>
+        </div>
+      </div>
+
+      <div class="settings-group" id="group-local-path">
+        <label class="settings-label">Path</label>
+        <input type="text" id="settings-path" class="settings-input" placeholder="~/.todos">
+      </div>
+
+      <div class="settings-group" id="group-git-repo" style="display:none">
+        <label class="settings-label">Repository name</label>
+        <input type="text" id="settings-git-repo-name" class="settings-input" placeholder="tally-md-log">
+        <span class="settings-hint">Name of the Git repo for your files (e.g. tally-md-work, tally-md-home)</span>
+      </div>
+
+      <div class="settings-group" id="group-git-url" style="display:none">
+        <label class="settings-label">Git repository URL</label>
+        <input type="text" id="settings-git-repo" class="settings-input" placeholder="https://github.com/user/tally-md-log.git">
+      </div>
+
+      <div class="settings-group" id="group-git-token" style="display:none">
+        <label class="settings-label">Personal access token <a id="token-help-link" class="settings-link" target="_blank">(generate)</a></label>
+        <div class="settings-row">
+          <input type="password" id="settings-git-token" class="settings-input" style="flex:1" placeholder="ghp_xxxxxxxxxxxx">
+          <button class="settings-btn" id="btn-toggle-token" type="button">Show</button>
+        </div>
+        <span id="token-status" class="settings-hint"></span>
+      </div>
+
+      <div class="settings-group" id="group-git-init" style="display:none">
+        <label class="settings-label">Initialize</label>
+        <div class="settings-row">
+          <button class="settings-btn" id="btn-init-repo">Init repo</button>
+          <span id="init-status" class="settings-hint" style="align-self:center"></span>
+        </div>
+        <span class="settings-hint">Creates the repo and files if they don't exist yet</span>
+      </div>
+
+      <div class="settings-group" id="group-sync-interval" style="display:none">
+        <label class="settings-label">Auto-sync interval</label>
+        <div class="settings-row">
+          <button class="settings-btn" data-sync="0">Off</button>
+          <button class="settings-btn" data-sync="5">5 min</button>
+          <button class="settings-btn" data-sync="15">15 min</button>
+          <button class="settings-btn" data-sync="30">30 min</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">Theme</label>
+        <div id="theme-picker" class="settings-row"></div>
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">Layout</label>
+        <div class="settings-row">
+          <button class="settings-btn" data-layout="horizontal">Side by side</button>
+          <button class="settings-btn" data-layout="vertical">Stacked</button>
+          <button class="settings-btn" data-layout="split">Split</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">Date format</label>
+        <div class="settings-row" id="date-format-row">
+          <button class="settings-btn" data-fmt="%Y-%m-%d"></button>
+          <button class="settings-btn" data-fmt="%d-%m-%Y"></button>
+          <button class="settings-btn" data-fmt="%d/%m/%Y"></button>
+          <button class="settings-btn" data-fmt="%m/%d/%Y"></button>
+          <button class="settings-btn" data-fmt="%B %d, %Y"></button>
+          <button class="settings-btn" data-fmt="%d %B %Y"></button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <button class="settings-btn" id="btn-open-shortcuts">Keyboard shortcuts...</button>
+      </div>
+
+      <div class="settings-actions">
+        <button id="settings-save" class="settings-primary-btn">Save</button>
+        <button id="settings-cancel" class="settings-secondary-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shortcuts sub-page -->
+  <div id="shortcuts-overlay" style="display:none">
+    <div id="shortcuts-panel">
+      <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
+      <div id="shortcuts-list"></div>
+      <div class="settings-group">
+        <button class="settings-btn" id="btn-reset-shortcuts">Reset to defaults</button>
+      </div>
+      <div class="settings-actions">
+        <button id="shortcuts-done" class="settings-primary-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="bundle.js"></script>
+</body>
+</html>
