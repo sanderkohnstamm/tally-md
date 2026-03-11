@@ -43,7 +43,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
+  padding: 0 8px 0 78px;
   height: 28px;
   min-height: 28px;
   background: var(--surface);
@@ -53,8 +53,7 @@ html, body {
 }
 
 #title-icon {
-  margin-right: 2px;
-  opacity: 0.8;
+  display: none;
 }
 
 #title-text {
@@ -65,9 +64,17 @@ html, body {
 }
 
 #title-controls {
-  display: flex;
+  display: none;
   gap: 0;
   -webkit-app-region: no-drag;
+}
+
+/* Linux: custom window controls, no left padding for traffic lights */
+body.platform-linux #title-bar {
+  padding-left: 8px;
+}
+body.platform-linux #title-controls {
+  display: flex;
 }
 
 .title-btn {
@@ -333,7 +340,7 @@ html, body {
 .settings-row {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  align-items: center;
 }
 
 .settings-hint {
@@ -362,6 +369,7 @@ html, body {
 
 .settings-input {
   width: 100%;
+  min-width: 0;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);

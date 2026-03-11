@@ -1,0 +1,32 @@
+name: TallyMD
+options:
+  bundleIdPrefix: com.sanderkohnstamm
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  TallyMD:
+    type: application
+    platform: iOS
+    sources:
+      - TallyMD
+    settings:
+      base:
+        INFOPLIST_FILE: TallyMD/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.sanderkohnstamm.tallymd
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+    dependencies:
+      - package: KeychainAccess
+
+packages:
+  KeychainAccess:
+    url: https://github.com/kishikawakatsumi/KeychainAccess.git
+    from: "4.2.2"
