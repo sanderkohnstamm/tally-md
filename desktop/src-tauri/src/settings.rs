@@ -14,8 +14,14 @@ pub struct Settings {
     pub pane_sizes: Vec<f64>,  // [todo%, today%, done%] — stored as 0-100
     pub sync_interval: u64,    // auto-sync interval in minutes (0 = disabled)
     pub setup_done: bool,      // whether first-time setup has been completed
+    #[serde(default = "default_font_size")]
+    pub font_size: u32, // editor font size in px
     #[serde(default = "default_keybindings")]
     pub keybindings: HashMap<String, String>, // action -> key string
+}
+
+fn default_font_size() -> u32 {
+    14
 }
 
 pub fn default_keybindings() -> HashMap<String, String> {
@@ -56,6 +62,7 @@ impl Default for Settings {
             pane_sizes: vec![40.0, 30.0, 30.0],
             sync_interval: 5,
             setup_done: false,
+            font_size: 14,
             keybindings: default_keybindings(),
         }
     }

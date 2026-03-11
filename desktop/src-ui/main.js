@@ -8,6 +8,7 @@ import { foldService, foldAll, unfoldAll, toggleFold, foldedRanges } from '@code
 import { palettes, applyPalette } from './themes.js';
 
 const { invoke } = window.__TAURI__.core;
+const { getCurrentWindow } = window.__TAURI__.window;
 
 // Clickable links
 const urlRegex = /https?:\/\/[^\s)>\]]+/g;
@@ -367,8 +368,23 @@ async function saveSettingsToBackend() {
     paneSizes: settingsState.paneSizes,
     syncInterval: settingsState.syncInterval,
     setupDone: settingsState.setupDone ?? true,
+    fontSize: settingsState.fontSize,
     keybindings: settingsState.keybindings,
   });
+}
+
+function applyFontSize(size) {
+  document.documentElement.style.setProperty('--editor-font-size', `${size}px`);
+  document.querySelectorAll('.cm-editor .cm-content').forEach(el => {
+    el.style.fontSize = `${size}px`;
+  });
+}
+
+function changeFontSize(delta) {
+  settingsState.fontSize = Math.max(8, Math.min(32, settingsState.fontSize + delta));
+  applyFontSize(settingsState.fontSize);
+  saveSettingsToBackend();
+  showMessage(`Font size: ${settingsState.fontSize}px`);
 }
 
 async function saveThemeToSettings(idx) {
@@ -530,7 +546,7 @@ const ACTION_LABELS = {
   openSettings: 'Settings',
 };
 
-let settingsState = { storageMode: 'local', localPath: '', gitRepo: '', gitRepoName: 'tally-md-log', themeIndex: 0, dateFormat: '%Y-%m-%d', layout: 'horizontal', paneSizes: [40, 30, 30], syncInterval: 5, keybindings: { ...DEFAULT_KEYBINDINGS } };
+let settingsState = { storageMode: 'local', localPath: '', gitRepo: '', gitRepoName: 'tally-md-log', themeIndex: 0, dateFormat: '%Y-%m-%d', layout: 'horizontal', paneSizes: [40, 30, 30], syncInterval: 5, fontSize: 14, keybindings: { ...DEFAULT_KEYBINDINGS } };
 let syncIdleTimeout = null;
 let syncIntervalTimer = null;
 let isSyncing = false;
@@ -804,6 +820,20 @@ function openSettings(isFirstTime) {
     };
   });
 
+  // Font size controls
+  const fontDisplay = document.getElementById('font-size-display');
+  fontDisplay.textContent = `${settingsState.fontSize}px`;
+  document.getElementById('btn-font-down').onclick = () => {
+    settingsState.fontSize = Math.max(8, settingsState.fontSize - 1);
+    fontDisplay.textContent = `${settingsState.fontSize}px`;
+    applyFontSize(settingsState.fontSize);
+  };
+  document.getElementById('btn-font-up').onclick = () => {
+    settingsState.fontSize = Math.min(32, settingsState.fontSize + 1);
+    fontDisplay.textContent = `${settingsState.fontSize}px`;
+    applyFontSize(settingsState.fontSize);
+  };
+
   // Date format buttons — show today's date in each format
   const now = new Date();
   const d = now.getDate();
@@ -1054,6 +1084,17 @@ document.addEventListener('keydown', (e) => {
       return;
     }
   }
+  // Font size: Ctrl+= / Ctrl+-
+  if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+    e.preventDefault();
+    changeFontSize(1);
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+    e.preventDefault();
+    changeFontSize(-1);
+    return;
+  }
   if (e.key === 'Escape') {
     const overlay = document.getElementById('settings-overlay');
     if (overlay.style.display !== 'none') {
@@ -1101,6 +1142,7 @@ async function init() {
     layout: settings.layout || 'horizontal',
     paneSizes: settings.pane_sizes || [40, 30, 30],
     syncInterval: settings.sync_interval ?? 5,
+    fontSize: settings.font_size || 14,
     keybindings: { ...DEFAULT_KEYBINDINGS, ...settings.keybindings },
     setupDone: settings.setup_done,
   };
@@ -1136,12 +1178,40 @@ async function init() {
   );
 
   applyPalette(palettes[currentPalette]);
+  applyFontSize(settingsState.fontSize);
   applyLayout(settingsState.layout, settingsState.paneSizes);
   initDividerDrag();
   setHelpText();
   focusedPane = 'todo';
   updateFocus();
   views.todo.focus();
+
+  // Title bar window controls
+  const appWindow = getCurrentWindow();
+  document.getElementById('btn-minimize').onclick = () => appWindow.minimize();
+  document.getElementById('btn-maximize').onclick = async () => {
+    if (await appWindow.isMaximized()) {
+      appWindow.unmaximize();
+    } else {
+      appWindow.maximize();
+    }
+  };
+  document.getElementById('btn-close').onclick = () => appWindow.close();
+
+  // Drag region — use startDragging for Linux compatibility
+  const titleBar = document.getElementById('title-bar');
+  titleBar.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#title-controls')) return;
+    if (e.buttons === 1) appWindow.startDragging();
+  });
+  titleBar.addEventListener('dblclick', async (e) => {
+    if (e.target.closest('#title-controls')) return;
+    if (await appWindow.isMaximized()) {
+      appWindow.unmaximize();
+    } else {
+      appWindow.maximize();
+    }
+  });
 
   document.getElementById('conflict-dismiss').onclick = () => hideConflictWarning();
 

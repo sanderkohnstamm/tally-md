@@ -8,6 +8,14 @@
 </head>
 <body>
   <div id="app">
+    <div id="title-bar" data-tauri-drag-region>
+      <span id="title-text" data-tauri-drag-region>Tally.md</span>
+      <div id="title-controls">
+        <button id="btn-minimize" class="title-btn">&#x2013;</button>
+        <button id="btn-maximize" class="title-btn">&#x25A1;</button>
+        <button id="btn-close" class="title-btn title-btn-close">&#x2715;</button>
+      </div>
+    </div>
     <div id="panes">
       <div class="pane" id="todo-pane">
         <div class="pane-header">
@@ -125,6 +133,15 @@
           <button class="settings-btn" data-fmt="%m/%d/%Y"></button>
           <button class="settings-btn" data-fmt="%B %d, %Y"></button>
           <button class="settings-btn" data-fmt="%d %B %Y"></button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">Font size</label>
+        <div class="settings-row">
+          <button class="settings-btn" id="btn-font-down">-</button>
+          <span id="font-size-display" class="font-size-value">14px</span>
+          <button class="settings-btn" id="btn-font-up">+</button>
         </div>
       </div>
 

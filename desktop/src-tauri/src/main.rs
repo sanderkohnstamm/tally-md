@@ -184,6 +184,7 @@ fn save_settings(
     pane_sizes: Vec<f64>,
     sync_interval: u64,
     setup_done: bool,
+    font_size: u32,
     keybindings: std::collections::HashMap<String, String>,
 ) -> Result<String, String> {
     let s = settings::Settings {
@@ -197,6 +198,7 @@ fn save_settings(
         pane_sizes,
         sync_interval,
         setup_done,
+        font_size,
         keybindings,
     };
     settings::save(&s)?;
