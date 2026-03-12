@@ -211,6 +211,44 @@ final class AppViewModel: ObservableObject {
         return result
     }
 
+    func forcePull() async {
+        guard settings.storageMode == "git",
+              !settings.gitRepo.isEmpty,
+              let token = KeychainService.getToken()
+        else { return }
+
+        syncState = .active
+        showStatus("Force pulling...")
+        do {
+            let result = try await gitService.forcePull(settings: settings, token: token)
+            loadFiles()
+            syncState = .ok
+            showStatus(result)
+        } catch {
+            syncState = .error
+            showStatus("Force pull error: \(error.localizedDescription)")
+        }
+    }
+
+    func forcePush() async {
+        guard settings.storageMode == "git",
+              !settings.gitRepo.isEmpty,
+              let token = KeychainService.getToken()
+        else { return }
+
+        syncState = .active
+        showStatus("Force pushing...")
+        do {
+            saveFiles()
+            let result = try await gitService.forcePush(settings: settings, token: token)
+            syncState = .ok
+            showStatus(result)
+        } catch {
+            syncState = .error
+            showStatus("Force push error: \(error.localizedDescription)")
+        }
+    }
+
     func pushIfNeeded() {
         guard settings.storageMode == "git",
               !settings.gitRepo.isEmpty,

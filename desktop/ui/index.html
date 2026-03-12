@@ -111,6 +111,15 @@
         </div>
       </div>
 
+      <div class="settings-group" id="group-git-force" style="display:none">
+        <label class="settings-label">Force sync</label>
+        <div class="settings-row">
+          <button class="settings-btn settings-btn-danger" id="btn-force-pull">Force pull (reset to remote)</button>
+          <button class="settings-btn settings-btn-danger" id="btn-force-push">Force push (overwrite remote)</button>
+        </div>
+        <span id="force-sync-status" class="settings-hint"></span>
+      </div>
+
       <div class="settings-group">
         <label class="settings-label">Theme</label>
         <div id="theme-picker" class="settings-row"></div>

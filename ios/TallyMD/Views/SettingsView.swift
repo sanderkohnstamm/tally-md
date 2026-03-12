@@ -16,6 +16,9 @@ struct SettingsView: View {
 
     @State private var initStatus: String = ""
     @State private var isInitializing = false
+    @State private var showForcePullConfirm = false
+    @State private var showForcePushConfirm = false
+    @State private var forceSyncStatus: String = ""
 
     var body: some View {
         NavigationStack {
@@ -72,6 +75,50 @@ struct SettingsView: View {
                             Text("30 min").tag(30)
                         }
                         .pickerStyle(.segmented)
+                    }
+
+                    Section("Force Sync") {
+                        Button(role: .destructive) {
+                            showForcePullConfirm = true
+                        } label: {
+                            Label("Force pull (reset to remote)", systemImage: "arrow.down.circle")
+                        }
+                        .alert("Force Pull", isPresented: $showForcePullConfirm) {
+                            Button("Cancel", role: .cancel) { }
+                            Button("Reset to Remote", role: .destructive) {
+                                Task {
+                                    forceSyncStatus = "Force pulling..."
+                                    await vm.forcePull()
+                                    forceSyncStatus = "Done"
+                                }
+                            }
+                        } message: {
+                            Text("This will discard all local changes and reset to the remote version.")
+                        }
+
+                        Button(role: .destructive) {
+                            showForcePushConfirm = true
+                        } label: {
+                            Label("Force push (overwrite remote)", systemImage: "arrow.up.circle")
+                        }
+                        .alert("Force Push", isPresented: $showForcePushConfirm) {
+                            Button("Cancel", role: .cancel) { }
+                            Button("Overwrite Remote", role: .destructive) {
+                                Task {
+                                    forceSyncStatus = "Force pushing..."
+                                    await vm.forcePush()
+                                    forceSyncStatus = "Done"
+                                }
+                            }
+                        } message: {
+                            Text("This will overwrite the remote repo with your local files.")
+                        }
+
+                        if !forceSyncStatus.isEmpty {
+                            Text(forceSyncStatus)
+                                .font(.caption)
+                                .foregroundColor(vm.theme.subtext)
+                        }
                     }
                 }
 

@@ -639,6 +639,7 @@ function openSettings(isFirstTime) {
     document.getElementById('group-git-token').style.display = isGit ? '' : 'none';
     document.getElementById('group-git-init').style.display = isGit ? '' : 'none';
     document.getElementById('group-sync-interval').style.display = isGit ? '' : 'none';
+    document.getElementById('group-git-force').style.display = isGit ? '' : 'none';
   };
 
   // Storage mode buttons
@@ -743,6 +744,39 @@ function openSettings(isFirstTime) {
       document.querySelectorAll('[data-sync]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.sync) === settingsState.syncInterval));
     };
   });
+
+  // Force sync buttons
+  const forceStatus = document.getElementById('force-sync-status');
+  document.getElementById('btn-force-pull').onclick = async () => {
+    if (!confirm('This will discard all local changes and reset to the remote version. Continue?')) return;
+    forceStatus.textContent = 'Force pulling...';
+    try {
+      await save(true);
+      const result = await invoke('git_force_pull');
+      forceStatus.textContent = result;
+      // Reload files
+      const files = await invoke('load_files');
+      views.todo.dispatch({ changes: { from: 0, to: views.todo.state.doc.length, insert: files.todo } });
+      views.today.dispatch({ changes: { from: 0, to: views.today.state.doc.length, insert: files.today } });
+      views.done.dispatch({ changes: { from: 0, to: views.done.state.doc.length, insert: files.done } });
+      setSyncState('ok');
+      hideConflictWarning();
+    } catch (e) {
+      forceStatus.textContent = `Error: ${e}`;
+    }
+  };
+  document.getElementById('btn-force-push').onclick = async () => {
+    if (!confirm('This will overwrite the remote repo with your local files. Continue?')) return;
+    forceStatus.textContent = 'Force pushing...';
+    try {
+      await save(true);
+      const result = await invoke('git_force_push');
+      forceStatus.textContent = result;
+      setSyncState('ok');
+    } catch (e) {
+      forceStatus.textContent = `Error: ${e}`;
+    }
+  };
 
   // Theme swatches
   const picker = document.getElementById('theme-picker');

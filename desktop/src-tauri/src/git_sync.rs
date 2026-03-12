@@ -55,14 +55,12 @@ fn token_path() -> std::path::PathBuf {
 
 #[cfg(debug_assertions)]
 pub fn store_token(token: &str) -> Result<(), String> {
-    std::fs::write(token_path(), token)
-        .map_err(|e| format!("Failed to store token: {e}"))
+    std::fs::write(token_path(), token).map_err(|e| format!("Failed to store token: {e}"))
 }
 
 #[cfg(debug_assertions)]
 pub fn get_token() -> Result<String, String> {
-    let token = std::fs::read_to_string(token_path())
-        .map_err(|_| "No token stored".to_string())?;
+    let token = std::fs::read_to_string(token_path()).map_err(|_| "No token stored".to_string())?;
     let token = token.trim().to_string();
     if token.is_empty() {
         return Err("No token stored".to_string());
@@ -79,8 +77,7 @@ pub fn has_token() -> bool {
 pub fn delete_token() -> Result<(), String> {
     let path = token_path();
     if path.exists() {
-        std::fs::remove_file(&path)
-            .map_err(|e| format!("Failed to delete token: {e}"))?;
+        std::fs::remove_file(&path).map_err(|e| format!("Failed to delete token: {e}"))?;
     }
     Ok(())
 }
@@ -99,8 +96,7 @@ fn ensure_files_exist(path: &Path) -> Result<(), String> {
     for name in &["todo.md", "today.md", "done.md"] {
         let file_path = path.join(name);
         if !file_path.exists() {
-            std::fs::write(&file_path, "")
-                .map_err(|e| format!("Failed to create {name}: {e}"))?;
+            std::fs::write(&file_path, "").map_err(|e| format!("Failed to create {name}: {e}"))?;
         }
     }
     if !path.join("settings.json").exists() {
@@ -141,8 +137,7 @@ fn commit_if_dirty(repo: &Repository, token: &str, message: &str) -> Result<bool
     let tree = repo
         .find_tree(tree_oid)
         .map_err(|e| format!("Find tree error: {e}"))?;
-    let sig =
-        Signature::now("Tally.md", "tally@local").map_err(|e| format!("Sig error: {e}"))?;
+    let sig = Signature::now("Tally.md", "tally@local").map_err(|e| format!("Sig error: {e}"))?;
     let parents = match repo.head().and_then(|h| h.peel_to_commit()) {
         Ok(p) => vec![p],
         Err(_) => vec![],
@@ -383,19 +378,48 @@ pub fn pull(repo_url: &str, local_path: &str, token: &str) -> Result<String, Str
         }
     }
 
-    // Normal merge — force-checkout theirs on conflict
+    // Normal merge — auto-resolve conflicts favoring local (ours) to prevent conflict markers
     let their_commit = repo
         .find_commit(fetch_commit.id())
         .map_err(|e| format!("Find commit error: {e}"))?;
+    let mut merge_opts = git2::MergeOptions::new();
+    merge_opts.file_favor(git2::FileFavor::Ours);
     repo.merge(
         &[&fetch_commit],
-        None,
+        Some(&mut merge_opts),
         Some(git2::build::CheckoutBuilder::default().force()),
     )
     .map_err(|e| format!("Merge error: {e}"))?;
 
-    // Check if index has conflicts
-    let index_conflicts = repo.index().ok().is_some_and(|idx| idx.has_conflicts());
+    // Resolve any remaining index conflicts (shouldn't happen with FileFavor::Ours, but be safe)
+    {
+        let mut index = repo.index().map_err(|e| format!("Index error: {e}"))?;
+        if index.has_conflicts() {
+            let conflicts: Vec<_> = index
+                .conflicts()
+                .map_err(|e| format!("Conflicts iter error: {e}"))?
+                .filter_map(std::result::Result::ok)
+                .collect();
+            for conflict in &conflicts {
+                // Prefer "ours" (local) version; fall back to "theirs" if ours doesn't exist
+                if let Some(ref ours) = conflict.our {
+                    index
+                        .add(ours)
+                        .map_err(|e| format!("Resolve conflict error: {e}"))?;
+                } else if let Some(ref theirs) = conflict.their {
+                    index
+                        .add(theirs)
+                        .map_err(|e| format!("Resolve conflict error: {e}"))?;
+                }
+            }
+            index
+                .write()
+                .map_err(|e| format!("Index write error: {e}"))?;
+        }
+    }
+
+    // Check if local files changed after merge (content differs from backup)
+    let index_conflicts = false; // Conflicts are now auto-resolved
 
     // Auto-commit the merge
     let sig =
@@ -539,4 +563,126 @@ fn do_push(repo: &Repository, token: &str) -> Result<(), String> {
 #[allow(clippy::unnecessary_wraps)]
 fn detect_default_branch(_remote: &mut git2::Remote, _token: &str) -> Result<String, String> {
     Ok("main".to_string())
+}
+
+/// Force pull: discard local changes and reset to remote version.
+pub fn force_pull(repo_url: &str, local_path: &str, token: &str) -> Result<String, String> {
+    let repo = ensure_repo(repo_url, local_path, token)?;
+
+    let callbacks = make_callbacks(token);
+    let mut fo = FetchOptions::new();
+    fo.remote_callbacks(callbacks);
+
+    let mut remote = repo
+        .find_remote("origin")
+        .map_err(|e| format!("No remote: {e}"))?;
+
+    let default_branch = detect_default_branch(&mut remote, token)?;
+
+    let callbacks2 = make_callbacks(token);
+    let mut fo2 = FetchOptions::new();
+    fo2.remote_callbacks(callbacks2);
+    remote
+        .fetch(&[&default_branch], Some(&mut fo2), None)
+        .map_err(|e| format!("Fetch failed: {e}"))?;
+
+    let fetch_ref = repo
+        .find_reference(&format!("refs/remotes/origin/{default_branch}"))
+        .map_err(|e| format!("No remote branch: {e}"))?;
+    let fetch_commit = fetch_ref
+        .peel_to_commit()
+        .map_err(|e| format!("Peel error: {e}"))?;
+
+    // Reset HEAD to remote commit
+    let refname = format!("refs/heads/{default_branch}");
+    repo.reference(
+        &refname,
+        fetch_commit.id(),
+        true,
+        "Force pull: reset to remote",
+    )
+    .map_err(|e| format!("Ref update error: {e}"))?;
+    repo.set_head(&refname)
+        .map_err(|e| format!("Set head error: {e}"))?;
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+        .map_err(|e| format!("Checkout error: {e}"))?;
+
+    // Clean merge state if any
+    let _ = repo.cleanup_state();
+
+    Ok("Force pulled — local files reset to remote version".to_string())
+}
+
+/// Force push: overwrite remote with current local version.
+pub fn force_push(repo_url: &str, local_path: &str, token: &str) -> Result<String, String> {
+    let repo = ensure_repo(repo_url, local_path, token)?;
+
+    // Stage and commit any pending changes
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true);
+    let statuses = repo
+        .statuses(Some(&mut opts))
+        .map_err(|e| format!("Status error: {e}"))?;
+
+    if !statuses.is_empty() {
+        let mut index = repo.index().map_err(|e| format!("Index error: {e}"))?;
+        index
+            .add_all(
+                ["*.md", "settings.json"].iter(),
+                git2::IndexAddOption::DEFAULT,
+                None,
+            )
+            .map_err(|e| format!("Add error: {e}"))?;
+        index
+            .write()
+            .map_err(|e| format!("Index write error: {e}"))?;
+        let tree_oid = index
+            .write_tree()
+            .map_err(|e| format!("Write tree error: {e}"))?;
+        let tree = repo
+            .find_tree(tree_oid)
+            .map_err(|e| format!("Find tree error: {e}"))?;
+        let sig =
+            Signature::now("Tally.md", "tally@local").map_err(|e| format!("Sig error: {e}"))?;
+        let parents = match repo.head().and_then(|h| h.peel_to_commit()) {
+            Ok(p) => vec![p],
+            Err(_) => vec![],
+        };
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Force push from Tally.md",
+            &tree,
+            &parent_refs,
+        )
+        .map_err(|e| format!("Commit error: {e}"))?;
+    }
+
+    // Force push
+    let callbacks = make_callbacks(token);
+    let mut push_opts = PushOptions::new();
+    push_opts.remote_callbacks(callbacks);
+
+    let mut remote = repo
+        .find_remote("origin")
+        .map_err(|e| format!("No remote: {e}"))?;
+
+    let default_branch = repo
+        .head()
+        .ok()
+        .and_then(|h| h.shorthand().map(ToString::to_string))
+        .unwrap_or_else(|| "main".to_string());
+
+    remote
+        .push(
+            &[&format!(
+                "+refs/heads/{default_branch}:refs/heads/{default_branch}"
+            )],
+            Some(&mut push_opts),
+        )
+        .map_err(|e| format!("Force push failed: {e}"))?;
+
+    Ok("Force pushed — remote now matches local version".to_string())
 }

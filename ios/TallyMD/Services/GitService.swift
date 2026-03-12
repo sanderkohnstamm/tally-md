@@ -97,6 +97,47 @@ actor GitService {
         return "\(pullResult), \(pushResult)"
     }
 
+    /// Force pull: overwrite local files with remote versions (ignoring local changes).
+    func forcePull(settings: AppSettings, token: String) async throws -> String {
+        let dir = FileService.todosDirectory(settings: settings)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        var pulled = 0
+        for name in ["todo.md", "today.md", "done.md"] {
+            if let file = try? await fetchFile(name: name, settings: settings, token: token) {
+                let path = dir.appendingPathComponent(name)
+                try? file.content.write(to: path, atomically: true, encoding: .utf8)
+                pulled += 1
+            }
+        }
+
+        return "Force pulled \(pulled) files — local reset to remote"
+    }
+
+    /// Force push: overwrite remote files with local versions (ignoring remote state).
+    func forcePush(settings: AppSettings, token: String) async throws -> String {
+        let dir = FileService.todosDirectory(settings: settings)
+        var pushed = 0
+
+        for name in ["todo.md", "today.md", "done.md", "settings.json"] {
+            let localContent = readLocal(name: name, dir: dir)
+
+            // Get current SHA (needed to update, even when force-overwriting)
+            let remote = try? await fetchFile(name: name, settings: settings, token: token)
+            let remoteSha = remote?.sha
+
+            let timestamp = formatTimestamp()
+            try await pushFile(
+                name: name, content: localContent, sha: remoteSha,
+                message: "Force push from Tally.md \(timestamp)",
+                settings: settings, token: token
+            )
+            pushed += 1
+        }
+
+        return "Force pushed \(pushed) files — remote now matches local"
+    }
+
     // MARK: - GitHub API
 
     /// Parse owner and repo from a GitHub URL.

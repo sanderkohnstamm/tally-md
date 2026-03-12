@@ -282,6 +282,28 @@ fn git_push() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn git_force_pull() -> Result<String, String> {
+    let s = settings::load();
+    if s.storage_mode != "git" || s.git_repo.is_empty() {
+        return Err("Git sync not configured".to_string());
+    }
+    let token = git_sync::get_token()?;
+    let local_path = todos_dir().to_string_lossy().to_string();
+    git_sync::force_pull(&s.git_repo, &local_path, &token)
+}
+
+#[tauri::command]
+fn git_force_push() -> Result<String, String> {
+    let s = settings::load();
+    if s.storage_mode != "git" || s.git_repo.is_empty() {
+        return Err("Git sync not configured".to_string());
+    }
+    let token = git_sync::get_token()?;
+    let local_path = todos_dir().to_string_lossy().to_string();
+    git_sync::force_push(&s.git_repo, &local_path, &token)
+}
+
+#[tauri::command]
 fn git_sync_full() -> Result<String, String> {
     let s = settings::load();
     if s.storage_mode != "git" || s.git_repo.is_empty() {
@@ -352,6 +374,8 @@ fn main() {
             git_delete_token,
             git_pull,
             git_push,
+            git_force_pull,
+            git_force_push,
             git_sync_full,
             open_url,
         ])
