@@ -6,9 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=wakey
-WorkingDirectory=/home/wakey/tally/server
-Environment=TALLY_ENV_FILE=/home/wakey/tally/.env
-ExecStart=/home/wakey/tally/server/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8321
+WorkingDirectory=/tally/server
+Environment=TALLY_ENV_FILE=/tally/.env
+ExecStart=/tally/server/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8321
 Restart=always
 RestartSec=5
 

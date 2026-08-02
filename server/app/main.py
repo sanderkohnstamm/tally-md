@@ -149,7 +149,7 @@ async def chat(request: Request):
     messages.append({"role": "user", "content": user_text})
 
     async def stream():
-        async for event in llm.agent_events(messages):
+        async for event in llm.agent_events(messages, session_kind="chat"):
             if event["type"] == "done":
                 with get_db() as conn:
                     conn.execute(
@@ -197,6 +197,7 @@ async def _settings_ctx(request: Request, status: dict | None = None) -> dict:
     return {
         "tab": "settings",
         "masked_key": settings.masked_key(),
+        "auth_mode": settings.auth_mode(),
         "model": config.model,
         "vault_ok": config.vault_path.exists(),
         "vault_path": str(config.vault_path),
@@ -284,4 +285,8 @@ async def google_oauth_callback(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "vault": config.vault_path.exists(), "key": bool(config.anthropic_api_key)}
+    return {
+        "ok": True,
+        "vault": config.vault_path.exists(),
+        "auth": settings.auth_mode() or None,
+    }

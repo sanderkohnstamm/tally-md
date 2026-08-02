@@ -24,17 +24,23 @@
     <p class="conn {{ 'ok' if status.ok else 'err' }}">
       {{ '✓' if status.ok else '✕' }} {{ status.message }}
     </p>
-  {% elif masked_key %}
-    <p class="muted">key set: {{ masked_key }}</p>
+  {% elif auth_mode == 'subscription' %}
+    <p class="conn ok">✓ logged in with claude subscription</p>
+  {% elif auth_mode == 'api-key' %}
+    <p class="muted">using API key: {{ masked_key }}</p>
   {% else %}
-    <p class="muted">not connected</p>
+    <p class="muted">not connected — log in with your claude account:
+      run <code>claude setup-token</code> on any machine with Claude Code
+      (it opens a claude.ai login link), then paste the token it prints below.</p>
   {% endif %}
-  <p><a class="connect-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
-    get an API key at console.anthropic.com ↗</a></p>
 
   <form method="post" action="/settings" class="settings-form">
-    <label>Anthropic API key</label>
-    <input type="password" name="anthropic_api_key" placeholder="{{ masked_key or 'sk-ant-…' }}"
+    <label>claude login token (from <code>claude setup-token</code>)</label>
+    <input type="password" name="claude_oauth_token"
+           placeholder="{{ '…set' if auth_mode == 'subscription' else 'sk-ant-oat01-…' }}"
+           autocomplete="off" autocapitalize="none" spellcheck="false">
+    <label>API key (alternative, console.anthropic.com)</label>
+    <input type="password" name="anthropic_api_key" placeholder="{{ masked_key or 'sk-ant-api…' }}"
            autocomplete="off" autocapitalize="none" spellcheck="false">
     <label>model</label>
     <input type="text" name="model" value="{{ model }}" autocapitalize="none" spellcheck="false">

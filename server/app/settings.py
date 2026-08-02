@@ -14,6 +14,7 @@ from .config import config
 SECRETS_PATH = config.data_dir / "secrets.json"
 
 SECRET_FIELDS = (
+    "claude_oauth_token",
     "anthropic_api_key",
     "model",
     "icloud_username",
@@ -51,6 +52,8 @@ def save_secrets(updates: dict) -> None:
 def apply_to_config() -> None:
     """Push stored secrets into the live config object."""
     data = load_secrets()
+    if data.get("claude_oauth_token"):
+        config.claude_oauth_token = data["claude_oauth_token"]
     if data.get("anthropic_api_key"):
         config.anthropic_api_key = data["anthropic_api_key"]
     if data.get("model"):
@@ -75,14 +78,29 @@ def masked_key() -> str:
     return f"{key[:7]}…{key[-4:]}" if len(key) > 12 else "set"
 
 
+def auth_mode() -> str:
+    """Which Claude credential is live: subscription login beats API key."""
+    if config.claude_oauth_token:
+        return "subscription"
+    if config.anthropic_api_key:
+        return "api-key"
+    return ""
+
+
 def vault_folders() -> list[str]:
-    """Top-level vault folders, for the focus-folder dropdown."""
+    """Actual vault folders (two levels deep), for the focus-folder dropdown."""
     if not config.vault_path.exists():
         return []
-    return sorted(
-        p.name for p in config.vault_path.iterdir()
-        if p.is_dir() and not p.name.startswith(".")
-    )
+    out: list[str] = []
+    for p in sorted(config.vault_path.iterdir(), key=lambda p: p.name.lower()):
+        if p.is_dir() and not p.name.startswith("."):
+            out.append(p.name)
+            out.extend(
+                f"{p.name}/{q.name}"
+                for q in sorted(p.iterdir(), key=lambda q: q.name.lower())
+                if q.is_dir() and not q.name.startswith(".")
+            )
+    return out
 
 
 # ---------- status probes ----------

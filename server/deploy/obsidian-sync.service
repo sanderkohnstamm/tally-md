@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=wakey
-ExecStart=/usr/bin/ob sync --path /home/wakey/Space --continuous
+ExecStart=/usr/bin/ob sync --path /Space --continuous
 Restart=always
 RestartSec=30
 

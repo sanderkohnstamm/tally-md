@@ -2,7 +2,7 @@
 # Provision tally-server on the Pi (run as wakey on mm4). Idempotent.
 set -euo pipefail
 
-REPO_DIR="$HOME/tally"
+REPO_DIR="/tally"
 
 sudo apt-get update -qq
 sudo apt-get install -y -qq python3-venv git nodejs npm
@@ -21,10 +21,12 @@ fi
 # --- env file ---
 if [ ! -f "$REPO_DIR/.env" ]; then
   cat > "$REPO_DIR/.env" <<'EOF'
-TALLY_VAULT=/home/wakey/Space
+TALLY_VAULT=/Space
 TALLY_TODO_DIR=Work
 TALLY_INBOX_NOTE=Inbox.md
-ANTHROPIC_API_KEY=
+# Auth: log in via the settings page (claude setup-token), or set one of:
+# CLAUDE_CODE_OAUTH_TOKEN=
+# ANTHROPIC_API_KEY=
 # ICLOUD_USERNAME=
 # ICLOUD_APP_PASSWORD=
 # GOOGLE_CREDENTIALS=/home/wakey/.tally-server/google-credentials.json

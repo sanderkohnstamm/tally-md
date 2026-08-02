@@ -34,6 +34,9 @@ class Config:
         default_factory=lambda: Path(os.environ.get("TALLY_DATA", "~/.tally-server")).expanduser()
     )
     anthropic_api_key: str = os.environ.get("ANTHROPIC_API_KEY", "")
+    # Long-lived OAuth token from `claude setup-token` (subscription auth via the
+    # Claude Agent SDK). When set, it is preferred over the API key.
+    claude_oauth_token: str = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
     model: str = os.environ.get("TALLY_MODEL", "claude-sonnet-5")
     icloud_username: str = os.environ.get("ICLOUD_USERNAME", "")
     icloud_app_password: str = os.environ.get("ICLOUD_APP_PASSWORD", "")

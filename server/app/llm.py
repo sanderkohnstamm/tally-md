@@ -155,8 +155,11 @@ def _client() -> anthropic.AsyncAnthropic:
 
 async def test_connection() -> tuple[bool, str]:
     """Cheap 1-token ping so the settings page can confirm the key works."""
+    if config.claude_oauth_token:
+        from . import llm_sdk
+        return await llm_sdk.test_connection()
     if not config.anthropic_api_key:
-        return False, "no API key set"
+        return False, "not connected — log in with claude or set an API key"
     try:
         await _client().messages.create(
             model=config.model,
@@ -174,10 +177,23 @@ async def test_connection() -> tuple[bool, str]:
         return False, f"{type(exc).__name__}: {str(exc)[:120]}"
 
 
-async def agent_events(messages: list[dict], max_turns: int = 12) -> AsyncIterator[dict]:
+async def agent_events(
+    messages: list[dict], max_turns: int = 12, session_kind: str | None = None
+) -> AsyncIterator[dict]:
     """Run the agent loop, yielding events:
     {"type": "text_delta", "text"} | {"type": "tool", "name", "args"} | {"type": "done", "text", "actions"}
+
+    With a subscription login (oauth token) the Agent SDK backend runs instead:
+    it keeps its own conversation state, so only the newest user message is sent
+    and `session_kind` names the session to resume ("chat"); None = one-shot.
     """
+    if config.claude_oauth_token:
+        from . import llm_sdk
+        prompt = str(messages[-1]["content"])
+        async for event in llm_sdk.agent_events(prompt, session_kind=session_kind):
+            yield event
+        return
+
     client = _client()
     full_text_parts: list[str] = []
     actions: list[dict] = []
