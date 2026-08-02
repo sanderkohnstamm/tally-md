@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% for name, items in panes.items() %}
+<section class="pane">
+  <h2>{{ name }}.md</h2>
+  <ul class="items">
+    {% for item in items %}
+    <li>
+      {% if item.section %}<span class="crumb">{{ item.section }}</span>{% endif %}
+      <div class="item-row">
+        {% if name != 'todo' %}
+        <form method="post" action="/api/todos/move" class="inline">
+          <input type="hidden" name="file" value="{{ name }}">
+          <input type="hidden" name="line_no" value="{{ item.line_no }}">
+          <input type="hidden" name="direction" value="back">
+          <button class="check back" title="move back">‹</button>
+        </form>
+        {% endif %}
+        <span class="item-text">{{ item.text | mditem }}</span>
+        {% if name != 'done' %}
+        <form method="post" action="/api/todos/move" class="inline">
+          <input type="hidden" name="file" value="{{ name }}">
+          <input type="hidden" name="line_no" value="{{ item.line_no }}">
+          <input type="hidden" name="direction" value="forward">
+          <button class="check" title="move forward">›</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endblock %}

@@ -1,10 +1,17 @@
-# Tally.md — Markdown Todo Editor
+# Tally.md — Markdown Todo Editor + Personal Assistant
 
-A three-pane markdown todo editor: **Todo → Today → Done**. Desktop app built with Tauri 2.x, with iOS planned.
+A three-pane markdown todo editor: **Todo → Today → Done** (desktop, Tauri 2.x; iOS, SwiftUI) —
+plus **tally assistant**, a self-hosted web app (`server/`) that runs on a Raspberry Pi and
+operates on Sander's Obsidian vault: quick capture (Claude files it), vault-grounded chat,
+todo flow, read-only calendar agenda. See `DESIGN.md`.
 
 ## Project Structure
 
 ```
+server/                 Assistant web app (FastAPI + vanilla JS PWA, runs on Pi "mm4")
+  app/                  config, db (SQLite+FTS5), notes, todos, llm (Claude agent), calendar_sync, main
+  templates/ static/    Jinja2 pages, tally-styled CSS, capture/chat JS
+  deploy/               setup.sh, systemd unit (see DESIGN.md for Pi provisioning)
 desktop/                Desktop app (Tauri 2.x)
   src-tauri/            Rust backend
     src/main.rs         Entry point, IPC command handlers

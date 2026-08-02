@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block status %}{{ date }}{% endblock %}
+
+{% block content %}
+<section class="pane">
+  <h2>capture</h2>
+  <form id="capture-form">
+    <textarea id="capture-input" rows="2" placeholder="dictate or type — tally files it"
+              autocomplete="off" enterkeyhint="send"></textarea>
+    <button type="submit" id="capture-btn">capture</button>
+  </form>
+  <div id="capture-feed">
+    {% for c in captures %}
+      {% include "partials/capture.html" %}
+    {% endfor %}
+  </div>
+</section>
+
+<section class="pane">
+  <h2>agenda</h2>
+  {% if events %}
+    <ul class="agenda">
+      {% for e in events %}
+      <li>
+        <span class="time">{{ e.time }}</span>
+        <span class="event-title">{{ e.title }}</span>
+        {% if e.location %}<span class="muted">{{ e.location }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">no events — calendars not connected or nothing planned</p>
+  {% endif %}
+</section>
+
+<section class="pane">
+  <h2>today.md</h2>
+  {% if today_items %}
+    <ul class="items">
+      {% for item in today_items %}
+      <li>
+        <div class="item-row">
+          <form method="post" action="/api/todos/move" class="inline">
+            <input type="hidden" name="file" value="today">
+            <input type="hidden" name="line_no" value="{{ item.line_no }}">
+            <input type="hidden" name="direction" value="forward">
+            <button class="check" title="done">✓</button>
+          </form>
+          <span class="item-text">{{ item.text | mditem }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">nothing planned yet</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}<script src="/static/capture.js"></script>{% endblock %}

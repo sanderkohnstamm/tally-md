@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="chat-log">
+  {% for m in history %}
+    <div class="msg {{ m.role }}">{{ m.content }}</div>
+  {% endfor %}
+</div>
+<form id="chat-form">
+  <input id="chat-input" type="text" placeholder="ask tally…" autocomplete="off" enterkeyhint="send">
+  <button type="submit">→</button>
+</form>
+{% endblock %}
+
+{% block scripts %}<script src="/static/chat.js"></script>{% endblock %}

@@ -1,0 +1,197 @@
+/* tally assistant — same design language as the desktop app (Catppuccin default) */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #1e1e2e;
+  --surface: #181825;
+  --overlay: #313244;
+  --text: #cdd6f4;
+  --subtext: #a6adc8;
+  --blue: #89b4fa;
+  --green: #a6e3a1;
+  --mauve: #cba6f7;
+  --red: #f38ba8;
+  --yellow: #f9e2af;
+  --teal: #94e2d5;
+  --border: #45475a;
+  --status-bg: #11111b;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 14px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+#status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
+  background: var(--status-bg);
+  border-bottom: 1px solid var(--border);
+}
+#title { font-weight: 600; color: var(--mauve); }
+#status-note { font-size: 12px; color: var(--subtext); }
+
+#content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+#tab-bar {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#tab-bar a {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  color: var(--subtext);
+  text-decoration: none;
+  font-size: 13px;
+}
+#tab-bar a.active { color: var(--blue); border-top: 2px solid var(--blue); margin-top: -1px; }
+
+.pane h2 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--subtext);
+  text-transform: lowercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.muted { color: var(--subtext); font-size: 12px; }
+
+/* agenda */
+.agenda { list-style: none; }
+.agenda li { display: flex; gap: 10px; padding: 5px 0; align-items: baseline; }
+.agenda .time { color: var(--yellow); min-width: 46px; font-size: 12px; }
+.agenda .event-title { flex: 1; }
+.agenda .muted { font-size: 11px; }
+
+/* todo items */
+.items { list-style: none; }
+.items li { padding: 4px 0; }
+.item-row { display: flex; align-items: flex-start; gap: 8px; }
+.item-text { flex: 1; line-height: 1.45; }
+.crumb { font-size: 10px; color: var(--mauve); display: block; margin-bottom: 1px; }
+.inline { display: inline; }
+.check {
+  background: var(--overlay);
+  color: var(--green);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 30px;
+  height: 26px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.check.back { color: var(--subtext); }
+
+/* capture */
+#capture-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+#capture-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  padding: 12px;
+  resize: none;
+}
+#capture-input:focus { outline: none; border-color: var(--green); }
+#capture-btn {
+  padding: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--overlay);
+  color: var(--green);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+#capture-btn:disabled { color: var(--subtext); }
+
+.capture-card {
+  border-left: 2px solid var(--green);
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.capture-text { color: var(--subtext); font-style: italic; margin-bottom: 3px; }
+.capture-response { line-height: 1.4; }
+
+/* chat */
+#chat-log {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.msg {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user { align-self: flex-end; background: var(--overlay); }
+.msg.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); }
+.msg.tool-note {
+  align-self: flex-start;
+  font-size: 11px;
+  color: var(--subtext);
+  padding: 0 12px;
+}
+
+#chat-form {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+}
+#chat-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  padding: 10px 12px;
+}
+#chat-input:focus { outline: none; border-color: var(--blue); }
+#chat-form button {
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--blue);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 0 16px;
+  cursor: pointer;
+}
