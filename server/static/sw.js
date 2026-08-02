@@ -1,19 +1,25 @@
-// Shell-only cache: static assets stale-while-revalidate (serve cached, refresh
-// in the background so the installed PWA picks up new CSS/JS one launch later),
-// everything else network-only. No offline data — over Tailscale we're
-// effectively always online, and iOS evicts PWA storage aggressively anyway.
-const CACHE = 'tally-shell-v8';
-const SHELL = ['/static/style.css', '/static/themes.js', '/static/chat.js', '/static/status.js'];
+// Shell cache, stale-while-revalidate: serve cached, refresh in the background.
+// skipWaiting + clients.claim so a new worker takes over immediately — without
+// them the very first (cache-first) worker kept serving stale CSS forever.
+// Asset URLs carry ?v= in the templates, which also busts any pre-claim cache.
+const CACHE = 'tally-shell-v9';
+const SHELL = [
+  '/static/style.css?v=9',
+  '/static/themes.js?v=9',
+  '/static/chat.js?v=9',
+  '/static/status.js?v=9',
+];
 
 self.addEventListener('install', e => {
+  self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 

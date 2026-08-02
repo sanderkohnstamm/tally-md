@@ -156,7 +156,7 @@ code {
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  padding-bottom: max(calc(env(safe-area-inset-bottom) - 26px), 0px);
+  padding-bottom: max(calc(env(safe-area-inset-bottom) - 34px), 0px);
 }
 #tab-bar a {
   flex: 1;
