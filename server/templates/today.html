@@ -20,11 +20,11 @@
     <textarea id="capture-input" rows="2" placeholder="dictate or type — tally files it"
               autocomplete="off" enterkeyhint="send"></textarea>
     <div id="capture-row">
-      <button type="button" id="attach-btn" title="upload a file to the vault">📎</button>
+      <label for="attach-input" id="attach-btn" role="button" title="upload a file to the vault">📎</label>
       <button type="submit" id="capture-btn">capture</button>
     </div>
-    <input type="file" id="attach-input" hidden
-           accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.md,.txt,.csv,.docx,.xlsx,.pptx,.mp3,.m4a,.wav,.mp4,.mov">
+    <input type="file" id="attach-input" class="offscreen"
+           accept="application/pdf,image/*,audio/*,video/*,text/plain,text/markdown,text/csv,.md,.csv,.docx,.xlsx,.pptx">
   </form>
   <div id="capture-feed">
     {% for c in captures %}

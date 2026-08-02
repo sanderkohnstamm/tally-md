@@ -2,7 +2,7 @@
 // in the background so the installed PWA picks up new CSS/JS one launch later),
 // everything else network-only. No offline data — over Tailscale we're
 // effectively always online, and iOS evicts PWA storage aggressively anyway.
-const CACHE = 'tally-shell-v3';
+const CACHE = 'tally-shell-v4';
 const SHELL = ['/static/style.css', '/static/themes.js', '/static/chat.js', '/static/capture.js', '/static/status.js'];
 
 self.addEventListener('install', e => {

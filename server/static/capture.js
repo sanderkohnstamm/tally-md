@@ -32,15 +32,16 @@ input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
 });
 
-// File upload → vault Files/ (PDFs, images, docs …)
+// File upload → vault Files/ (PDFs, images, docs …). The 📎 is a <label> for
+// the file input — native activation, since iOS ignores JS .click() on hidden
+// file inputs in some modes.
 const attachBtn = document.getElementById('attach-btn');
 const attachInput = document.getElementById('attach-input');
 
-attachBtn.addEventListener('click', () => attachInput.click());
 attachInput.addEventListener('change', async () => {
   const file = attachInput.files[0];
   if (!file) return;
-  attachBtn.disabled = true;
+  attachBtn.classList.add('busy');
   attachBtn.textContent = '⋯';
   try {
     const body = new FormData();
@@ -51,7 +52,7 @@ attachInput.addEventListener('change', async () => {
   } catch (err) {
     alert('upload failed: ' + err.message);
   } finally {
-    attachBtn.disabled = false;
+    attachBtn.classList.remove('busy');
     attachBtn.textContent = '📎';
     attachInput.value = '';
   }
