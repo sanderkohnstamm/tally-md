@@ -3,11 +3,15 @@
 {% block content %}
 {% for name, items in panes.items() %}
 <section class="pane">
-  <h2>{{ name }}.md</h2>
+  <h2>{{ name }}.md <span class="count">· {{ items|length }}</span></h2>
   <ul class="items">
+    {% set ns = namespace(section=none) %}
     {% for item in items %}
+    {% if item.section != ns.section %}
+      {% set ns.section = item.section %}
+      {% if item.section %}<li class="section-h">{{ item.section }}</li>{% endif %}
+    {% endif %}
     <li>
-      {% if item.section %}<span class="crumb">{{ item.section }}</span>{% endif %}
       <div class="item-row">
         {% if name != 'todo' %}
         <form method="post" action="/api/todos/move" class="inline">
@@ -26,6 +30,12 @@
           <button class="check" title="move forward">›</button>
         </form>
         {% endif %}
+        <form method="post" action="/api/todos/remove" class="inline"
+              onsubmit="return confirm('delete this item?')">
+          <input type="hidden" name="file" value="{{ name }}">
+          <input type="hidden" name="line_no" value="{{ item.line_no }}">
+          <button class="check remove" title="delete">✕</button>
+        </form>
       </div>
     </li>
     {% endfor %}

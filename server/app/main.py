@@ -37,7 +37,22 @@ def _mditem(text: str):
     return Markup(s)
 
 
+def _mdlite(text: str):
+    """Light markdown for chat bubbles: bold, code, em — newlines preserved
+    by the bubble's pre-wrap. Mirrors mdLite() in chat.js."""
+    import re as _re
+
+    from markupsafe import Markup, escape
+
+    s = str(escape(text))
+    s = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+    s = _re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    s = _re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"<em>\1</em>", s)
+    return Markup(s)
+
+
 templates.env.filters["mditem"] = _mditem
+templates.env.filters["mdlite"] = _mdlite
 
 
 @app.on_event("startup")
@@ -91,6 +106,16 @@ def _recent_captures(limit: int = 5) -> list[dict]:
 @app.get("/", response_class=HTMLResponse)
 async def today_page(request: Request):
     events = [_fmt_event(e) for e in calendar_sync.get_agenda(days=1)]
+    next_event = None
+    if not events:
+        week = calendar_sync.get_agenda(days=7)
+        if week:
+            e = _fmt_event(week[0])
+            try:
+                day = datetime.datetime.fromisoformat(e["start_utc"]).astimezone().strftime("%a")
+            except ValueError:
+                day = ""
+            next_event = {**e, "day": day}
     with get_db() as conn:
         row = conn.execute(
             "SELECT text FROM briefings WHERE date = ?", (datetime.date.today().isoformat(),)
@@ -102,6 +127,7 @@ async def today_page(request: Request):
         "date": datetime.date.today().strftime("%A %d %B"),
         "captures": _recent_captures(),
         "briefing": row["text"] if row else None,
+        "next_event": next_event,
     })
 
 
@@ -245,6 +271,19 @@ async def move_todo(request: Request):
         todos.move_item(str(form["file"]), int(str(form["line_no"])), str(form["direction"]))
     except ValueError:
         pass  # stale line number (concurrent edit) — just re-render
+    referer = request.headers.get("referer", "")
+    if referer.endswith("/"):
+        return await today_page(request)
+    return await todos_page(request)
+
+
+@app.post("/api/todos/remove", response_class=HTMLResponse)
+async def remove_todo(request: Request):
+    form = await request.form()
+    try:
+        todos.remove_item(str(form["file"]), int(str(form["line_no"])))
+    except ValueError:
+        pass  # stale line number — just re-render
     referer = request.headers.get("referer", "")
     if referer.endswith("/"):
         return await today_page(request)

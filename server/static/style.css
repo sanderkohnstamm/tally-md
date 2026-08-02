@@ -384,3 +384,28 @@ code {
   .settings-form input, .settings-form select, .settings-form textarea,
   #capture-input, #chat-input { font-size: 14px; }
 }
+
+/* todos: section subheaders + counts + delete */
+.count { font-weight: 400; color: var(--subtext); opacity: 0.7; }
+.section-h {
+  font-size: 11px;
+  color: var(--mauve);
+  padding: 10px 0 2px !important;
+  letter-spacing: 0.4px;
+}
+.check.remove { color: var(--red); opacity: 0.55; }
+.check.remove:active { opacity: 1; }
+@media (hover: hover) { .check.remove:hover { opacity: 1; border-color: var(--red); } }
+
+/* themed thin scrollbars (desktop webkit) */
+#content::-webkit-scrollbar, #chat-log::-webkit-scrollbar { width: 8px; }
+#content::-webkit-scrollbar-thumb, #chat-log::-webkit-scrollbar-thumb {
+  background: var(--overlay);
+  border-radius: 4px;
+}
+#content::-webkit-scrollbar-track, #chat-log::-webkit-scrollbar-track { background: transparent; }
+
+/* chat hint */
+#chat-hint { margin: auto; text-align: center; max-width: 340px; line-height: 1.6; }
+.msg strong { color: var(--text); }
+.msg code { font-size: 12px; }

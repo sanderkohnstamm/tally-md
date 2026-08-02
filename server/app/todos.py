@@ -106,6 +106,17 @@ def _insert_done(entry_text: str) -> None:
     _write("done", "\n".join(lines))
 
 
+def remove_item(file: str, line_no: int) -> str:
+    """Delete an item line outright (no move to done). Obsidian Sync's version
+    history is the safety net."""
+    if file not in FILES:
+        raise ValueError(f"unknown file {file}")
+    if not any(i.line_no == line_no for i in list_items(file)):
+        raise ValueError("no item at that line")
+    text = _remove_line(file, line_no)
+    return f"removed from {file}.md: {text}"
+
+
 def move_item(file: str, line_no: int, direction: str) -> str:
     """Move an item forward (todo→today→done) or back (done→today→todo)."""
     order = ["todo", "today", "done"]

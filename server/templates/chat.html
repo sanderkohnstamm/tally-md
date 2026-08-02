@@ -2,8 +2,13 @@
 
 {% block content %}
 <div id="chat-log">
+  {% if not history %}
+    <p class="muted" id="chat-hint">ask about your vault, todos, or calendar —
+      tally can also file notes and move todos for you. The conversation continues
+      across visits.</p>
+  {% endif %}
   {% for m in history %}
-    <div class="msg {{ m.role }}">{{ m.content }}</div>
+    <div class="msg {{ m.role }}">{{ m.content | mdlite if m.role == 'assistant' else m.content }}</div>
   {% endfor %}
 </div>
 <form id="chat-form">

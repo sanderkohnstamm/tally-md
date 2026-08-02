@@ -45,13 +45,16 @@
       </li>
       {% endfor %}
     </ul>
+  {% elif next_event %}
+    <p class="muted">nothing today — next: {{ next_event.day }}
+      {{ next_event.time }} {{ next_event.title }}</p>
   {% else %}
-    <p class="muted">no events — calendars not connected or nothing planned</p>
+    <p class="muted">no events — connect a calendar in <a href="/settings" class="connect-link">settings</a></p>
   {% endif %}
 </section>
 
 <section class="pane">
-  <h2>today.md</h2>
+  <h2>today.md <span class="count">· {{ today_items|length }}</span></h2>
   {% if today_items %}
     <ul class="items">
       {% for item in today_items %}
