@@ -162,6 +162,45 @@ async def capture(request: Request):
     })
 
 
+@app.post("/api/upload", response_class=HTMLResponse)
+async def upload(request: Request):
+    """Save an uploaded file (PDF etc.) into the vault's Files/ folder.
+    Obsidian Sync picks it up; the model can Read it when asked."""
+    import re
+
+    form = await request.form()
+    file = form.get("file")
+    if file is None or isinstance(file, str):
+        return HTMLResponse("no file", status_code=422)
+    data = await file.read()
+    if len(data) > 50_000_000:
+        return HTMLResponse("file too large (50MB max)", status_code=413)
+    if not data:
+        return HTMLResponse("empty file", status_code=422)
+
+    name = re.sub(r"[^\w. -]", "_", Path(file.filename or "file").name).strip("._ ") or "file"
+    files_dir = config.vault_path / "Files"
+    files_dir.mkdir(exist_ok=True)
+    target = files_dir / name
+    n = 1
+    while target.exists():
+        target = files_dir / f"{Path(name).stem}-{n}{Path(name).suffix}"
+        n += 1
+    target.write_bytes(data)
+    rel = str(target.relative_to(config.vault_path))
+
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO captures (text, response, actions) VALUES (?, ?, ?)",
+            (f"📎 {name}", f"saved to {rel} — ask about it in chat", "[]"),
+        )
+        capture_id = cur.lastrowid
+    return templates.TemplateResponse(request, "partials/capture.html", {
+        "c": {"id": capture_id, "text": f"📎 {name}",
+              "response": f"saved to {rel} — ask about it in chat"},
+    })
+
+
 # ---------- chat ----------
 
 @app.post("/api/chat")
