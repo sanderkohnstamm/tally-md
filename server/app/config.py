@@ -38,6 +38,8 @@ class Config:
     # Claude Agent SDK). When set, it is preferred over the API key.
     claude_oauth_token: str = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
     model: str = os.environ.get("TALLY_MODEL", "claude-sonnet-5")
+    # Secret iCal feed URLs (newline-separated) — read-only calendars, no OAuth
+    ics_urls: str = os.environ.get("TALLY_ICS_URLS", "")
     icloud_username: str = os.environ.get("ICLOUD_USERNAME", "")
     icloud_app_password: str = os.environ.get("ICLOUD_APP_PASSWORD", "")
     google_credentials: Path = field(

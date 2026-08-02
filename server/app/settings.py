@@ -23,8 +23,9 @@ SECRET_FIELDS = (
     "google_client_secret",
 )
 
-# Non-secret settings where empty is a meaningful value (not "leave unchanged")
-PLAIN_FIELDS = ("focus_dir",)
+# Settings where empty is a meaningful value (not "leave unchanged"); these are
+# shown editable in the form rather than masked
+PLAIN_FIELDS = ("focus_dir", "ics_urls")
 
 
 def load_secrets() -> dict:
@@ -64,6 +65,8 @@ def apply_to_config() -> None:
         config.icloud_app_password = data["icloud_app_password"]
     if "focus_dir" in data:
         config.focus_dir = data["focus_dir"]
+    if "ics_urls" in data:
+        config.ics_urls = data["ics_urls"]
 
 
 def google_client() -> tuple[str, str]:

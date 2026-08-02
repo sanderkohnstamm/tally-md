@@ -207,8 +207,19 @@ async def _settings_ctx(request: Request, status: dict | None = None) -> dict:
         "redirect_uri": f"{_base_url(request)}/oauth/google/callback",
         "folders": settings.vault_folders(),
         "focus_dir": config.focus_dir,
+        "ics_urls": config.ics_urls,
+        "ics_count": _ics_count(),
         "status": status,
     }
+
+
+def _ics_count() -> dict:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n, COUNT(DISTINCT calendar) AS cals "
+            "FROM events WHERE source = 'ics'"
+        ).fetchone()
+    return {"events": row["n"], "calendars": row["cals"]}
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -221,7 +232,12 @@ async def save_settings(request: Request):
     form = await request.form()
     values = {k: str(form.get(k, "")).strip() for k in settings.SECRET_FIELDS}
     values["focus_dir"] = str(form.get("focus_dir", "")).strip()
+    values["ics_urls"] = str(form.get("ics_urls", "")).strip()
     settings.save_secrets(values)
+    try:
+        await asyncio.to_thread(calendar_sync.sync_ics)
+    except Exception:
+        logging.getLogger("tally").exception("ics sync on save failed")
     ok, message = await llm.test_connection()
     return templates.TemplateResponse(
         request, "settings.html",

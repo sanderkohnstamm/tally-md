@@ -52,16 +52,28 @@
       {% endfor %}
     </select>
 
-    <h2 class="form-h2">google calendar</h2>
+    <h2 class="form-h2">calendars</h2>
+    {% if ics_count.events %}
+      <p class="conn ok">✓ {{ ics_count.events }} events from {{ ics_count.calendars }} feed{{ 's' if ics_count.calendars != 1 }}</p>
+    {% endif %}
+    <p class="muted">no login needed — paste each calendar's secret iCal address.
+      In Google Calendar: gear → Settings → pick the calendar → Integrate calendar →
+      <em>Secret address in iCal format</em>. Works for any provider that offers an
+      .ics feed.</p>
+    <label>ical feed urls (one per line)</label>
+    <textarea name="ics_urls" rows="3" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+              autocomplete="off" autocapitalize="none" spellcheck="false">{{ ics_urls }}</textarea>
+
+    <h2 class="form-h2">google calendar via OAuth (alternative)</h2>
     {% if google.connected %}
       <p class="conn ok">✓ connected</p>
     {% elif google.client_set %}
       <p><a class="connect-link" href="/oauth/google/start">connect google calendar →</a></p>
     {% else %}
-      <p class="muted">paste an OAuth client below, then a connect link appears.
-        Create one at console.cloud.google.com → Credentials → OAuth client (Web application)
-        with redirect URI <code>{{ redirect_uri }}</code>, Calendar API enabled,
-        consent screen published to Production.</p>
+      <p class="muted">only needed if you prefer full account login over feeds:
+        create an OAuth client at console.cloud.google.com (Web application,
+        redirect URI <code>{{ redirect_uri }}</code>, Calendar API, consent screen
+        in Production) and paste it here.</p>
     {% endif %}
     <label>google OAuth client id</label>
     <input type="text" name="google_client_id" placeholder="{{ '…set' if google.client_set else '….apps.googleusercontent.com' }}"

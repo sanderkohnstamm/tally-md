@@ -71,6 +71,18 @@ body {
   padding: 10px 12px;
 }
 .settings-form input:focus { outline: none; border-color: var(--blue); }
+.settings-form textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  word-break: break-all;
+}
+.settings-form textarea:focus { outline: none; border-color: var(--blue); }
 .settings-form select {
   background: var(--surface);
   border: 1px solid var(--border);

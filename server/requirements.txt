@@ -7,3 +7,6 @@ caldav
 google-api-python-client
 google-auth-oauthlib
 claude-agent-sdk
+icalendar
+recurring-ical-events
+requests

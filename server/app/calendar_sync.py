@@ -64,6 +64,46 @@ def sync_icloud() -> int:
     return len(events)
 
 
+def sync_ics() -> int:
+    """Secret iCal feed URLs (e.g. Google Calendar's 'Secret address in iCal
+    format') — read-only, no OAuth. One URL per line in settings."""
+    urls = [u.strip() for u in config.ics_urls.splitlines() if u.strip()]
+    if not urls:
+        _upsert([], "ics")
+        return 0
+    import icalendar
+    import recurring_ical_events
+    import requests
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now - datetime.timedelta(days=1)
+    end = now + datetime.timedelta(days=WINDOW_DAYS)
+    events = []
+    for i, url in enumerate(urls):
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            cal = icalendar.Calendar.from_ical(resp.content)
+        except Exception as exc:  # bad URL / revoked secret address / parse error
+            log.warning("ics feed %d failed: %s", i + 1, exc)
+            continue
+        name = str(cal.get("X-WR-CALNAME", "") or f"feed {i + 1}")
+        for comp in recurring_ical_events.of(cal).between(start, end):
+            dtstart = comp.get("dtstart").dt
+            dtend = comp.get("dtend")
+            events.append({
+                "uid": f"ics:{i}:{comp.get('uid')}:{_to_utc(dtstart)}",
+                "calendar": name,
+                "title": str(comp.get("summary", "(no title)")),
+                "start_utc": _to_utc(dtstart),
+                "end_utc": _to_utc(dtend.dt) if dtend else None,
+                "all_day": int(not isinstance(dtstart, datetime.datetime)),
+                "location": str(comp.get("location", "") or ""),
+            })
+    _upsert(events, "ics")
+    return len(events)
+
+
 def sync_google() -> int:
     if not config.google_token.exists():
         return 0
@@ -128,7 +168,7 @@ def get_agenda(days: int = 1) -> list[dict]:
 
 async def poll_loop() -> None:
     while True:
-        for fn in (sync_google, sync_icloud):
+        for fn in (sync_ics, sync_google, sync_icloud):
             try:
                 n = await asyncio.to_thread(fn)
                 if n:
