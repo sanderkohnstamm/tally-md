@@ -54,9 +54,9 @@ body {
 }
 .orb.ok { background: var(--green); }
 .orb.err { background: var(--red); }
-#status-right { display: flex; align-items: center; gap: 12px; }
+#status-right { display: flex; align-items: center; gap: 17px; }
 #status-note { font-size: 12px; color: var(--subtext); }
-#settings-link { color: var(--subtext); text-decoration: none; font-size: 16px; }
+#settings-link { color: var(--subtext); text-decoration: none; font-size: 16px; padding: 4px 2px; }
 #settings-link:active { color: var(--text); }
 #theme-btn {
   background: none;
@@ -65,7 +65,7 @@ body {
   font-size: 16px;
   font-family: inherit;
   cursor: pointer;
-  padding: 0;
+  padding: 4px 2px;
 }
 #theme-btn:active { color: var(--text); }
 
