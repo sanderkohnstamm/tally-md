@@ -48,6 +48,16 @@ def _save_session_id(kind: str, session_id: str) -> None:
     _SESSION_FILE.write_text(json.dumps(data))
 
 
+def reset_session(kind: str) -> None:
+    """Forget a resumed session (the "new chat" button)."""
+    try:
+        data = json.loads(_SESSION_FILE.read_text())
+        data.pop(kind, None)
+        _SESSION_FILE.write_text(json.dumps(data))
+    except (OSError, json.JSONDecodeError):
+        pass
+
+
 def _build_server(actions: list[dict]):
     """Fresh SDK MCP server per run; write-tool calls are recorded in `actions`."""
     from . import llm  # late import — llm.py imports us back

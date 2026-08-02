@@ -82,4 +82,30 @@ form.addEventListener('submit', async e => {
   }
 });
 
+// File upload → vault Files/. The 📎 is a <label> for the file input —
+// native activation, since iOS ignores JS .click() on hidden file inputs.
+const attachBtn = document.getElementById('attach-btn');
+const attachInput = document.getElementById('attach-input');
+
+attachInput.addEventListener('change', async () => {
+  const file = attachInput.files[0];
+  if (!file) return;
+  attachBtn.classList.add('busy');
+  attachBtn.textContent = '⋯';
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body });
+    if (!res.ok) throw new Error(await res.text() || 'HTTP ' + res.status);
+    const info = await res.json();
+    bubble('tool-note', '📎 saved to ' + info.rel + ' — ask about it here');
+  } catch (err) {
+    bubble('tool-note', '✕ upload failed: ' + err.message);
+  } finally {
+    attachBtn.classList.remove('busy');
+    attachBtn.textContent = '📎';
+    attachInput.value = '';
+  }
+});
+
 log.scrollTop = log.scrollHeight;

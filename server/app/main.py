@@ -95,14 +95,6 @@ def _fmt_event(e: dict) -> dict:
     return e
 
 
-def _recent_captures(limit: int = 5) -> list[dict]:
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM captures ORDER BY id DESC LIMIT ?", (limit,)
-        ).fetchall()
-    return [dict(r) for r in rows]
-
-
 @app.get("/", response_class=HTMLResponse)
 async def today_page(request: Request):
     events = [_fmt_event(e) for e in calendar_sync.get_agenda(days=1)]
@@ -125,7 +117,6 @@ async def today_page(request: Request):
         "events": events,
         "today_items": todos.list_items("today"),
         "date": datetime.date.today().strftime("%A %d %B"),
-        "captures": _recent_captures(),
         "briefing": row["text"] if row else None,
         "next_event": next_event,
     })
@@ -160,10 +151,11 @@ async def todos_page(request: Request):
 
 # ---------- capture ----------
 
-@app.post("/api/capture", response_class=HTMLResponse)
+@app.post("/api/capture")
 async def capture(request: Request):
-    """Quick capture: plain text in (form, JSON, or raw body — Shortcut-friendly),
-    Claude classifies and files it, rendered capture card out."""
+    """Headless capture endpoint (kept for iOS Shortcuts / curl — the UI flow
+    is the chat). Plain text in (form, JSON, or raw body), Claude classifies
+    and files it, JSON out."""
     content_type = request.headers.get("content-type", "")
     if "json" in content_type:
         text = (await request.json()).get("text", "")
@@ -174,18 +166,15 @@ async def capture(request: Request):
         text = (await request.body()).decode(errors="replace")
     text = text.strip()
     if not text:
-        return HTMLResponse("", status_code=422)
+        return HTMLResponse("empty", status_code=422)
 
     result = await llm.handle_capture(text)
     with get_db() as conn:
-        cur = conn.execute(
+        conn.execute(
             "INSERT INTO captures (text, response, actions) VALUES (?, ?, ?)",
             (text, result["text"], json.dumps(result["actions"])),
         )
-        capture_id = cur.lastrowid
-    return templates.TemplateResponse(request, "partials/capture.html", {
-        "c": {"id": capture_id, "text": text, "response": result["text"]},
-    })
+    return {"response": result["text"], "actions": result["actions"]}
 
 
 @app.post("/api/upload", response_class=HTMLResponse)
@@ -216,15 +205,11 @@ async def upload(request: Request):
     rel = str(target.relative_to(config.vault_path))
 
     with get_db() as conn:
-        cur = conn.execute(
+        conn.execute(
             "INSERT INTO captures (text, response, actions) VALUES (?, ?, ?)",
-            (f"📎 {name}", f"saved to {rel} — ask about it in chat", "[]"),
+            (f"📎 {name}", f"saved to {rel}", "[]"),
         )
-        capture_id = cur.lastrowid
-    return templates.TemplateResponse(request, "partials/capture.html", {
-        "c": {"id": capture_id, "text": f"📎 {name}",
-              "response": f"saved to {rel} — ask about it in chat"},
-    })
+    return {"ok": True, "name": name, "rel": rel}
 
 
 # ---------- chat ----------
@@ -260,6 +245,19 @@ async def chat(request: Request):
             yield f"data: {json.dumps(payload)}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@app.post("/api/chat/reset")
+async def reset_chat():
+    """New chat: clear displayed history and drop the resumed SDK session."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM chat_messages")
+    try:
+        from . import llm_sdk
+        llm_sdk.reset_session("chat")
+    except Exception:
+        logging.getLogger("tally").exception("session reset failed")
+    return RedirectResponse("/chat", status_code=303)
 
 
 # ---------- todos api ----------

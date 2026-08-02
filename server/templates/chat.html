@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 
+{% block status %}
+<form method="post" action="/api/chat/reset" class="inline"
+      onsubmit="return confirm('start a new chat? history will be cleared')">
+  <button id="reset-chat" type="submit" title="new chat">↺ new</button>
+</form>
+{% endblock %}
+
 {% block content %}
 <div id="chat-log">
   {% if not history %}
@@ -12,8 +19,11 @@
   {% endfor %}
 </div>
 <form id="chat-form">
-  <input id="chat-input" type="text" placeholder="ask tally…" autocomplete="off" enterkeyhint="send">
-  <button type="submit">→</button>
+  <label for="attach-input" id="attach-btn" role="button" title="upload a file to the vault">📎</label>
+  <input type="file" id="attach-input" class="offscreen"
+         accept="application/pdf,image/*,audio/*,video/*,text/plain,text/markdown,text/csv,.md,.csv,.docx,.xlsx,.pptx">
+  <input id="chat-input" type="text" placeholder="ask or capture — tally files it" autocomplete="off" enterkeyhint="send">
+  <button type="submit" id="chat-send">→</button>
 </form>
 {% endblock %}
 
