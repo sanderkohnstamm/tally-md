@@ -1,7 +1,8 @@
-// Shell-only cache: static assets cache-first, everything else network-only.
-// No offline data — over Tailscale we're effectively always online, and iOS
-// evicts PWA storage aggressively anyway.
-const CACHE = 'tally-shell-v2';
+// Shell-only cache: static assets stale-while-revalidate (serve cached, refresh
+// in the background so the installed PWA picks up new CSS/JS one launch later),
+// everything else network-only. No offline data — over Tailscale we're
+// effectively always online, and iOS evicts PWA storage aggressively anyway.
+const CACHE = 'tally-shell-v3';
 const SHELL = ['/static/style.css', '/static/themes.js', '/static/chat.js', '/static/capture.js', '/static/status.js'];
 
 self.addEventListener('install', e => {
@@ -19,6 +20,14 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/static/')) {
-    e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)));
+    e.respondWith(
+      caches.open(CACHE).then(async cache => {
+        const hit = await cache.match(e.request);
+        const refresh = fetch(e.request)
+          .then(res => { if (res.ok) cache.put(e.request, res.clone()); return res; })
+          .catch(() => hit);
+        return hit || refresh;
+      })
+    );
   }
 });

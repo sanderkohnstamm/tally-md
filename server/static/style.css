@@ -152,9 +152,13 @@ code {
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  /* home-indicator inset minus overlap — the full inset leaves a big dead band
-     when running as an installed PWA */
-  padding-bottom: max(calc(env(safe-area-inset-bottom) - 16px), 0px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* installed PWA: overlap the home indicator almost fully — the full inset
+   leaves a big dead band under the tabs */
+@media (display-mode: standalone) {
+  #tab-bar { padding-bottom: max(calc(env(safe-area-inset-bottom) - 26px), 0px); }
+  #tab-bar a { padding: 10px 0; }
 }
 #tab-bar a {
   flex: 1;
