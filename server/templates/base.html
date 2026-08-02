@@ -14,7 +14,15 @@
 </head>
 <body>
   <header id="status-bar">
-    <span id="title">tally</span>
+    <span id="title-group">
+      <span id="title">tally</span>
+      <span id="orbs">
+        <i class="orb" data-k="server" title="server"></i>
+        <i class="orb" data-k="sync" title="obsidian sync"></i>
+        <i class="orb" data-k="model" title="claude"></i>
+        <i class="orb" data-k="cal" title="calendars"></i>
+      </span>
+    </span>
     <span id="status-right">
       <span id="status-note">{% block status %}{% endblock %}</span>
       <button id="theme-btn" title="theme" onclick="cycleTheme()">◐</button>
@@ -33,6 +41,7 @@
   </nav>
 
   {% block scripts %}{% endblock %}
+  <script src="/static/status.js"></script>
   <script>
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js');
   </script>

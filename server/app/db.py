@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS events (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS events_start ON events(start_utc);
+CREATE TABLE IF NOT EXISTS briefings (
+    date TEXT PRIMARY KEY,         -- local YYYY-MM-DD
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    text TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS chat_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),

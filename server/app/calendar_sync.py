@@ -15,6 +15,9 @@ log = logging.getLogger("tally.calendar")
 
 WINDOW_DAYS = 14
 
+# Last sync_ics failures, surfaced on the settings page
+ics_errors: list[str] = []
+
 
 def _upsert(events: list[dict], source: str) -> None:
     with get_db() as conn:
@@ -67,6 +70,7 @@ def sync_icloud() -> int:
 def sync_ics() -> int:
     """Secret iCal feed URLs (e.g. Google Calendar's 'Secret address in iCal
     format') — read-only, no OAuth. One URL per line in settings."""
+    ics_errors.clear()
     urls = [u.strip() for u in config.ics_urls.splitlines() if u.strip()]
     if not urls:
         _upsert([], "ics")
@@ -86,6 +90,7 @@ def sync_ics() -> int:
             cal = icalendar.Calendar.from_ical(resp.content)
         except Exception as exc:  # bad URL / revoked secret address / parse error
             log.warning("ics feed %d failed: %s", i + 1, exc)
+            ics_errors.append(f"feed {i + 1}: {str(exc)[:100]}")
             continue
         name = str(cal.get("X-WR-CALNAME", "") or f"feed {i + 1}")
         for comp in recurring_ical_events.of(cal).between(start, end):

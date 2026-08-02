@@ -81,6 +81,21 @@ def masked_key() -> str:
     return f"{key[:7]}…{key[-4:]}" if len(key) > 12 else "set"
 
 
+MODEL_CHOICES = [
+    ("claude-sonnet-5", "sonnet 5 — fast, capable (default)"),
+    ("claude-opus-5", "opus 5 — deepest reasoning"),
+    ("claude-haiku-4-5-20251001", "haiku 4.5 — quickest"),
+]
+
+
+def model_choices() -> list[tuple[str, str]]:
+    """Dropdown options, keeping any custom model currently configured."""
+    choices = list(MODEL_CHOICES)
+    if config.model and config.model not in {m for m, _ in choices}:
+        choices.append((config.model, config.model))
+    return choices
+
+
 def auth_mode() -> str:
     """Which Claude credential is live: subscription login beats API key."""
     if config.claude_oauth_token:

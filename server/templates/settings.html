@@ -43,7 +43,11 @@
     <input type="password" name="anthropic_api_key" placeholder="{{ masked_key or 'sk-ant-api…' }}"
            autocomplete="off" autocapitalize="none" spellcheck="false">
     <label>model</label>
-    <input type="text" name="model" value="{{ model }}" autocapitalize="none" spellcheck="false">
+    <select name="model">
+      {% for value, label in model_choices %}
+      <option value="{{ value }}" {{ 'selected' if model == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
     <label>focus folder — where prompts start (search bias + default filing area)</label>
     <select name="focus_dir">
       <option value="" {{ 'selected' if not focus_dir }}>entire vault</option>
@@ -56,6 +60,9 @@
     {% if ics_count.events %}
       <p class="conn ok">✓ {{ ics_count.events }} events from {{ ics_count.calendars }} feed{{ 's' if ics_count.calendars != 1 }}</p>
     {% endif %}
+    {% for err in ics_errors %}
+      <p class="conn err">✕ {{ err }}</p>
+    {% endfor %}
     <p class="muted">no login needed — paste each calendar's secret iCal address.
       In Google Calendar: gear → Settings → pick the calendar → Integrate calendar →
       <em>Secret address in iCal format</em>. Works for any provider that offers an
@@ -63,6 +70,7 @@
     <label>ical feed urls (one per line)</label>
     <textarea name="ics_urls" rows="3" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
               autocomplete="off" autocapitalize="none" spellcheck="false">{{ ics_urls }}</textarea>
+    <button type="submit" class="mini">save &amp; sync feeds</button>
 
     <h2 class="form-h2">google calendar via OAuth (alternative)</h2>
     {% if google.connected %}

@@ -53,6 +53,8 @@ class Config:
         ).expanduser()
     )
     calendar_poll_seconds: int = int(os.environ.get("TALLY_CAL_POLL", "300"))
+    timezone: str = os.environ.get("TALLY_TZ", "Europe/Amsterdam")
+    briefing_hour: int = int(os.environ.get("TALLY_BRIEFING_HOUR", "7"))
 
     @property
     def db_path(self) -> Path:

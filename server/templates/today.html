@@ -3,6 +3,18 @@
 
 {% block content %}
 <section class="pane">
+  <h2>briefing</h2>
+  {% if briefing %}
+    <p class="briefing">{{ briefing }}</p>
+  {% else %}
+    <form method="post" action="/api/briefing" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='thinking…'">
+      <button type="submit" class="pane-btn">generate briefing</button>
+    </form>
+    <p class="muted">auto-generated every morning at 7:00</p>
+  {% endif %}
+</section>
+
+<section class="pane">
   <h2>capture</h2>
   <form id="capture-form">
     <textarea id="capture-input" rows="2" placeholder="dictate or type — tally files it"

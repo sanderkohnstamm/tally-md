@@ -16,6 +16,7 @@ from collections.abc import AsyncIterator
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    ClaudeSDKClient,
     ResultMessage,
     TextBlock,
     ToolUseBlock,
@@ -72,6 +73,17 @@ def _options(actions: list[dict], resume: str | None, max_turns: int) -> ClaudeA
     from . import llm
 
     tally_tools = [f"mcp__tally__{t['name']}" for t in llm.TOOLS]
+    # The CLI defers MCP tools behind ToolSearch, so the model won't see them
+    # in its context — without this inventory it assumes they don't exist
+    # (e.g. "I don't have calendar access").
+    tools_note = (
+        "\n\nYour tally tools are MCP tools (deferred — load with ToolSearch "
+        f"'select:...' before first use): {', '.join(tally_tools)}. "
+        "mcp__tally__get_agenda is your calendar (Google/iCloud feeds) — use it for any "
+        "scheduling question; never claim you lack calendar access. Use the todo tools "
+        "for todo.md/today.md/done.md so the tally format stays intact; Read/Grep/Glob "
+        "on the vault are fine for reading. Never edit vault files directly."
+    )
     return ClaudeAgentOptions(
         model=config.model,
         cwd=str(config.vault_path),
@@ -82,7 +94,7 @@ def _options(actions: list[dict], resume: str | None, max_turns: int) -> ClaudeA
         system_prompt={
             "type": "preset",
             "preset": "claude_code",
-            "append": llm.system_prompt()[0]["text"],
+            "append": llm.system_prompt()[0]["text"] + tools_note,
         },
         setting_sources=[],
         include_partial_messages=True,
@@ -101,8 +113,12 @@ async def agent_events(
     resume = _load_session_id(session_kind) if session_kind else None
 
     async def run(resume_id: str | None):
-        async for msg in query(prompt=prompt, options=_options(actions, resume_id, max_turns)):
-            yield msg
+        # ClaudeSDKClient (streaming mode) is required: in-process SDK MCP
+        # servers — our tally tools — are not available via plain query().
+        async with ClaudeSDKClient(options=_options(actions, resume_id, max_turns)) as client:
+            await client.query(prompt)
+            async for msg in client.receive_response():
+                yield msg
 
     attempts = [resume, None] if resume else [None]
     for i, resume_id in enumerate(attempts):

@@ -235,6 +235,40 @@ async def agent_events(
     yield {"type": "done", "text": "".join(full_text_parts), "actions": actions}
 
 
+BRIEFING_INSTRUCTION = (
+    "Prepare Sander's morning briefing for {date}. Gather context first: get_agenda for "
+    "today (days=1) and the week (days=7), list_todos for today.md and the backlog, and "
+    "search the focus folder if something on the calendar needs context.\n"
+    "Then write, as plain text with no headers or bullets:\n"
+    "- two short lines about today: meetings with times, and what the day should focus on\n"
+    "- a blank line, then two or three short lines on the rest of the week: upcoming "
+    "meetings or deadlines worth preparing for\n"
+    "Under 80 words total. Direct, no filler, no greeting."
+)
+
+
+async def generate_briefing() -> str:
+    """Generate + store the daily briefing (07:00 job, or on demand)."""
+    from zoneinfo import ZoneInfo
+
+    from .db import get_db
+
+    today = datetime.datetime.now(ZoneInfo(config.timezone)).date()
+    prompt = BRIEFING_INSTRUCTION.format(date=f"{today:%A} {today.isoformat()}")
+    final: dict = {}
+    async for event in agent_events([{"role": "user", "content": prompt}]):
+        if event["type"] == "done":
+            final = event
+    text = final.get("text", "").strip()
+    if text:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO briefings (date, text) VALUES (?, ?)",
+                (today.isoformat(), text),
+            )
+    return text
+
+
 CAPTURE_INSTRUCTION = (
     "The following is a quick capture, often dictated on a phone (expect dictation noise; "
     "infer intent). Decide what it is and act:\n"

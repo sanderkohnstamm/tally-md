@@ -46,6 +46,24 @@ async def startup() -> None:
     settings.apply_to_config()
     notes.refresh_index(force=True)
     asyncio.create_task(calendar_sync.poll_loop())
+    asyncio.create_task(briefing_loop())
+
+
+async def briefing_loop() -> None:
+    """Generate the morning briefing at briefing_hour local time, daily."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(config.timezone)
+    while True:
+        now = datetime.datetime.now(tz)
+        target = now.replace(hour=config.briefing_hour, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += datetime.timedelta(days=1)
+        await asyncio.sleep((target - now).total_seconds())
+        try:
+            await llm.generate_briefing()
+        except Exception:
+            logging.getLogger("tally").exception("morning briefing failed")
 
 
 # ---------- pages ----------
@@ -73,13 +91,28 @@ def _recent_captures(limit: int = 5) -> list[dict]:
 @app.get("/", response_class=HTMLResponse)
 async def today_page(request: Request):
     events = [_fmt_event(e) for e in calendar_sync.get_agenda(days=1)]
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT text FROM briefings WHERE date = ?", (datetime.date.today().isoformat(),)
+        ).fetchone()
     return templates.TemplateResponse(request, "today.html", {
         "tab": "today",
         "events": events,
         "today_items": todos.list_items("today"),
         "date": datetime.date.today().strftime("%A %d %B"),
         "captures": _recent_captures(),
+        "briefing": row["text"] if row else None,
     })
+
+
+@app.post("/api/briefing")
+async def run_briefing():
+    """Generate today's briefing on demand (button on the today page)."""
+    try:
+        await llm.generate_briefing()
+    except Exception:
+        logging.getLogger("tally").exception("on-demand briefing failed")
+    return RedirectResponse("/", status_code=303)
 
 
 @app.get("/chat", response_class=HTMLResponse)
@@ -209,6 +242,8 @@ async def _settings_ctx(request: Request, status: dict | None = None) -> dict:
         "focus_dir": config.focus_dir,
         "ics_urls": config.ics_urls,
         "ics_count": _ics_count(),
+        "ics_errors": calendar_sync.ics_errors,
+        "model_choices": settings.model_choices(),
         "status": status,
     }
 
@@ -297,6 +332,28 @@ async def google_oauth_callback(request: Request):
     config.google_token.chmod(0o600)
     await asyncio.to_thread(calendar_sync.sync_google)
     return RedirectResponse("/settings", status_code=303)
+
+
+_status_cache: dict = {"t": 0.0, "data": None}
+
+
+@app.get("/api/status")
+async def api_status():
+    """Header orbs: obsidian sync / claude auth / calendars. Cached 30s —
+    the sync probe shells out to `ob` and systemctl."""
+    import time
+
+    if _status_cache["data"] is None or time.monotonic() - _status_cache["t"] > 30:
+        sync = await asyncio.to_thread(settings.obsidian_sync_status)
+        with get_db() as conn:
+            n_events = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        _status_cache["data"] = {
+            "sync": sync["ok"],
+            "model": bool(settings.auth_mode()),
+            "cal": n_events > 0,
+        }
+        _status_cache["t"] = time.monotonic()
+    return _status_cache["data"]
 
 
 @app.get("/health")

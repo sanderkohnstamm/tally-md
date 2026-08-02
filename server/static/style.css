@@ -42,7 +42,18 @@ body {
   background: var(--status-bg);
   border-bottom: 1px solid var(--border);
 }
+#title-group { display: flex; align-items: center; gap: 10px; }
 #title { font-weight: 600; color: var(--mauve); }
+#orbs { display: flex; gap: 5px; align-items: center; }
+.orb {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--overlay);
+  transition: background 0.3s;
+}
+.orb.ok { background: var(--green); }
+.orb.err { background: var(--red); }
 #status-right { display: flex; align-items: center; gap: 12px; }
 #status-note { font-size: 12px; color: var(--subtext); }
 #settings-link { color: var(--subtext); text-decoration: none; font-size: 16px; }
@@ -140,7 +151,9 @@ code {
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* home-indicator inset minus overlap — the full inset leaves a big dead band
+     when running as an installed PWA */
+  padding-bottom: max(calc(env(safe-area-inset-bottom) - 16px), 0px);
 }
 #tab-bar a {
   flex: 1;
@@ -275,4 +288,68 @@ code {
   font-size: 16px;
   padding: 0 16px;
   cursor: pointer;
+}
+
+/* briefing */
+.briefing { white-space: pre-wrap; line-height: 1.55; }
+.pane-btn, .mini {
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--overlay);
+  color: var(--blue);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.pane-btn:disabled { color: var(--subtext); }
+.settings-form .mini { margin-top: 2px; }
+
+/* desktop: pointer niceties */
+@media (hover: hover) {
+  #tab-bar a:hover, #settings-link:hover, #theme-btn:hover { color: var(--text); }
+  .check:hover, button:hover:not(:disabled) { border-color: var(--blue); }
+  .connect-link:hover { text-decoration: underline; }
+}
+
+/* desktop layout: nav under the header, panes in columns */
+@media (min-width: 880px) {
+  html, body { font-size: 15px; }
+  #status-bar { padding: 12px 28px; }
+  #tab-bar {
+    order: -1;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+    justify-content: flex-start;
+    padding-left: 16px;
+  }
+  #tab-bar a { flex: none; padding: 10px 16px; }
+  #tab-bar a.active {
+    border-top: none;
+    border-bottom: 2px solid var(--blue);
+    margin: 0 0 -1px 0;
+  }
+  body { flex-direction: column; }
+  header#status-bar { order: -2; }
+  #content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 26px;
+    align-content: start;
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 26px 28px;
+  }
+  .pane { min-width: 0; }
+  /* chat stays a single centered column */
+  #content:has(#chat-log) {
+    display: flex;
+    flex-direction: column;
+    max-width: 780px;
+  }
+  .settings-form input, .settings-form select, .settings-form textarea,
+  #capture-input, #chat-input { font-size: 14px; }
 }
