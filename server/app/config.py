@@ -28,6 +28,8 @@ class Config:
     todo_dir: str = os.environ.get("TALLY_TODO_DIR", "Work")
     # Note inside the vault where quick captures are appended
     inbox_note: str = os.environ.get("TALLY_INBOX_NOTE", "Inbox.md")
+    # Vault subfolder Claude focuses on ("" = whole vault); changeable in settings
+    focus_dir: str = os.environ.get("TALLY_FOCUS_DIR", "")
     data_dir: Path = field(
         default_factory=lambda: Path(os.environ.get("TALLY_DATA", "~/.tally-server")).expanduser()
     )

@@ -125,10 +125,15 @@ def run_tool(name: str, args: dict) -> str:
 
 def system_prompt() -> list[dict]:
     today = datetime.date.today()
+    focus = (
+        f"Primary working area: the vault's `{config.focus_dir}/` folder — search results "
+        "from it rank first, and notes/todos belong there unless clearly personal.\n\n"
+        if config.focus_dir else ""
+    )
     header = (
         "You are Tally, Sander's personal assistant, running on his Raspberry Pi and "
         "operating directly on his Obsidian vault (the markdown files are the source of "
-        f"truth). Today is {today:%A} {today.isoformat()}.\n\n"
+        f"truth). Today is {today:%A} {today.isoformat()}.\n\n" + focus +
         "Style: brief and direct — this is read on a phone. No headers or bullet-point "
         "essays unless asked. When you act (add a todo, append a note), confirm in one line "
         "what you did and where it went.\n\n"
@@ -146,6 +151,27 @@ def system_prompt() -> list[dict]:
 
 def _client() -> anthropic.AsyncAnthropic:
     return anthropic.AsyncAnthropic(api_key=config.anthropic_api_key)
+
+
+async def test_connection() -> tuple[bool, str]:
+    """Cheap 1-token ping so the settings page can confirm the key works."""
+    if not config.anthropic_api_key:
+        return False, "no API key set"
+    try:
+        await _client().messages.create(
+            model=config.model,
+            max_tokens=1,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        return True, f"connected · {config.model}"
+    except anthropic.AuthenticationError:
+        return False, "key rejected (authentication failed)"
+    except anthropic.NotFoundError:
+        return False, f"key works but model '{config.model}' not available to this account"
+    except anthropic.PermissionDeniedError:
+        return False, "key valid but lacks permission (check org / billing)"
+    except Exception as exc:  # network, rate limit, no credits, …
+        return False, f"{type(exc).__name__}: {str(exc)[:120]}"
 
 
 async def agent_events(messages: list[dict], max_turns: int = 12) -> AsyncIterator[dict]:

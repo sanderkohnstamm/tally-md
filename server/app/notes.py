@@ -61,23 +61,24 @@ def refresh_index(force: bool = False) -> int:
     return changed
 
 
-def search_notes(query: str, limit: int = 8) -> list[dict]:
+def search_notes(query: str, limit: int = 8, whole_vault: bool = False) -> list[dict]:
+    """FTS5 search. Results from the focus folder (if set) rank first, but the
+    rest of the vault is still searched — focus is a bias, not a wall."""
     refresh_index()
+    focus = config.focus_dir if not whole_vault else ""
+    sql = (
+        "SELECT path, title, snippet(notes_fts, 2, '»', '«', ' … ', 24) AS snippet "
+        "FROM notes_fts WHERE notes_fts MATCH ? "
+        "ORDER BY (CASE WHEN path LIKE ? THEN 0 ELSE 1 END), rank LIMIT ?"
+    )
+    like = f"{focus}/%" if focus else "%"
     with get_db() as conn:
         try:
-            rows = conn.execute(
-                "SELECT path, title, snippet(notes_fts, 2, '»', '«', ' … ', 24) AS snippet "
-                "FROM notes_fts WHERE notes_fts MATCH ? ORDER BY rank LIMIT ?",
-                (query, limit),
-            ).fetchall()
+            rows = conn.execute(sql, (query, like, limit)).fetchall()
         except Exception:
             # FTS5 chokes on some raw user syntax; retry as quoted phrase terms
             safe = " ".join(f'"{t}"' for t in query.split())
-            rows = conn.execute(
-                "SELECT path, title, snippet(notes_fts, 2, '»', '«', ' … ', 24) AS snippet "
-                "FROM notes_fts WHERE notes_fts MATCH ? ORDER BY rank LIMIT ?",
-                (safe, limit),
-            ).fetchall()
+            rows = conn.execute(sql, (safe, like, limit)).fetchall()
     return [dict(r) for r in rows]
 
 

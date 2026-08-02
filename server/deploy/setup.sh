@@ -36,8 +36,11 @@ fi
 
 # --- systemd ---
 sudo cp "$REPO_DIR/server/deploy/tally-server.service" /etc/systemd/system/
+sudo cp "$REPO_DIR/server/deploy/obsidian-sync.service" /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now tally-server
+# obsidian-sync only makes sense once `ob sync-setup` has been run:
+sudo systemctl enable --now obsidian-sync || true
 
 # --- tailscale serve: HTTPS at https://mm4.<tailnet>.ts.net ---
 sudo tailscale serve --bg 8321 || echo ">>> tailscale serve failed — is tailscale up?"

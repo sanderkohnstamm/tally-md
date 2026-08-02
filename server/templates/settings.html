@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block status %}settings{% endblock %}
+
+{% block content %}
+<section class="pane">
+  <h2>obsidian sync</h2>
+  {% if sync.ok %}
+    <p class="conn ok">✓ syncing — vault linked, service running</p>
+  {% else %}
+    <p class="conn err">✕ not syncing</p>
+    <ul class="checklist">
+      <li>{{ '✓' if sync.configured else '✕' }} vault linked
+        {% if not sync.configured %}<span class="muted"> — on the Pi: <code>ob sync-setup --vault "Space" --path {{ vault_path }}</code></span>{% endif %}</li>
+      <li>{{ '✓' if sync.service_active else '✕' }} sync service
+        {% if not sync.service_active %}<span class="muted"> — <code>sudo systemctl enable --now obsidian-sync</code></span>{% endif %}</li>
+    </ul>
+    {% if sync.detail %}<p class="muted">{{ sync.detail }}</p>{% endif %}
+  {% endif %}
+</section>
+
+<section class="pane">
+  <h2>claude</h2>
+  {% if status %}
+    <p class="conn {{ 'ok' if status.ok else 'err' }}">
+      {{ '✓' if status.ok else '✕' }} {{ status.message }}
+    </p>
+  {% elif masked_key %}
+    <p class="muted">key set: {{ masked_key }}</p>
+  {% else %}
+    <p class="muted">not connected</p>
+  {% endif %}
+  <p><a class="connect-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
+    get an API key at console.anthropic.com ↗</a></p>
+
+  <form method="post" action="/settings" class="settings-form">
+    <label>Anthropic API key</label>
+    <input type="password" name="anthropic_api_key" placeholder="{{ masked_key or 'sk-ant-…' }}"
+           autocomplete="off" autocapitalize="none" spellcheck="false">
+    <label>model</label>
+    <input type="text" name="model" value="{{ model }}" autocapitalize="none" spellcheck="false">
+    <label>focus folder — where prompts start (search bias + default filing area)</label>
+    <select name="focus_dir">
+      <option value="" {{ 'selected' if not focus_dir }}>entire vault</option>
+      {% for f in folders %}
+      <option value="{{ f }}" {{ 'selected' if focus_dir == f }}>{{ f }}/</option>
+      {% endfor %}
+    </select>
+
+    <h2 class="form-h2">google calendar</h2>
+    {% if google.connected %}
+      <p class="conn ok">✓ connected</p>
+    {% elif google.client_set %}
+      <p><a class="connect-link" href="/oauth/google/start">connect google calendar →</a></p>
+    {% else %}
+      <p class="muted">paste an OAuth client below, then a connect link appears.
+        Create one at console.cloud.google.com → Credentials → OAuth client (Web application)
+        with redirect URI <code>{{ redirect_uri }}</code>, Calendar API enabled,
+        consent screen published to Production.</p>
+    {% endif %}
+    <label>google OAuth client id</label>
+    <input type="text" name="google_client_id" placeholder="{{ '…set' if google.client_set else '….apps.googleusercontent.com' }}"
+           autocomplete="off" autocapitalize="none" spellcheck="false">
+    <label>google OAuth client secret</label>
+    <input type="password" name="google_client_secret" placeholder="{{ '…set' if google.client_set else 'GOCSPX-…' }}"
+           autocomplete="off" autocapitalize="none" spellcheck="false">
+
+    <h2 class="form-h2">apple calendar (icloud)</h2>
+    {% if icloud_set %}<p class="conn ok">✓ credentials set</p>
+    {% else %}<p class="muted">app-specific password from appleid.apple.com → Sign-In &amp; Security</p>{% endif %}
+    <label>icloud email</label>
+    <input type="text" name="icloud_username" autocomplete="off" autocapitalize="none" spellcheck="false">
+    <label>app-specific password</label>
+    <input type="password" name="icloud_app_password" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="off">
+
+    <button type="submit">save &amp; test</button>
+  </form>
+  <p class="muted hint">Everything here is stored only on this Pi (mode 0600), never in the vault or repo.</p>
+</section>
+
+<section class="pane">
+  <h2>status</h2>
+  <p class="muted">vault: {{ ('✓ ' + vault_path) if vault_ok else ('✕ ' + vault_path + ' not found') }}</p>
+</section>
+{% endblock %}

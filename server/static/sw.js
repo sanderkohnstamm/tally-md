@@ -2,7 +2,7 @@
 // No offline data — over Tailscale we're effectively always online, and iOS
 // evicts PWA storage aggressively anyway.
 const CACHE = 'tally-shell-v1';
-const SHELL = ['/static/style.css', '/static/chat.js', '/static/capture.js'];
+const SHELL = ['/static/style.css', '/static/themes.js', '/static/chat.js', '/static/capture.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));
