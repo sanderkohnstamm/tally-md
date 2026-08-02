@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
+{# per pane: (target, glyph, class, tooltip) — plus delete, all on the left #}
+{% set actions = {
+  'today': [('done', '✓', 'check', 'finish'), ('todo', '⇄', 'check switch', 'to todo.md')],
+  'todo':  [('done', '✓', 'check', 'finish'), ('today', '⇄', 'check switch', 'to today.md')],
+  'done':  [('todo', '↺', 'check switch', 'back to todo.md')],
+} %}
 {% for name, items in panes.items() %}
-<section class="pane">
+<section class="pane card">
   <h2>{{ name }}.md <span class="count">· {{ items|length }}</span></h2>
   <ul class="items">
     {% set ns = namespace(section=none) %}
@@ -13,29 +19,23 @@
     {% endif %}
     <li>
       <div class="item-row">
-        {% if name != 'todo' %}
-        <form method="post" action="/api/todos/move" class="inline">
-          <input type="hidden" name="file" value="{{ name }}">
-          <input type="hidden" name="line_no" value="{{ item.line_no }}">
-          <input type="hidden" name="direction" value="back">
-          <button class="check back" title="move back">‹</button>
-        </form>
-        {% endif %}
+        <span class="item-btns">
+          {% for target, glyph, cls, tip in actions[name] %}
+          <form method="post" action="/api/todos/move" class="inline">
+            <input type="hidden" name="file" value="{{ name }}">
+            <input type="hidden" name="line_no" value="{{ item.line_no }}">
+            <input type="hidden" name="target" value="{{ target }}">
+            <button class="{{ cls }}" title="{{ tip }}">{{ glyph }}</button>
+          </form>
+          {% endfor %}
+          <form method="post" action="/api/todos/remove" class="inline"
+                onsubmit="return confirm('delete this item?')">
+            <input type="hidden" name="file" value="{{ name }}">
+            <input type="hidden" name="line_no" value="{{ item.line_no }}">
+            <button class="check remove" title="delete">✕</button>
+          </form>
+        </span>
         <span class="item-text">{{ item.text | mditem }}</span>
-        {% if name != 'done' %}
-        <form method="post" action="/api/todos/move" class="inline">
-          <input type="hidden" name="file" value="{{ name }}">
-          <input type="hidden" name="line_no" value="{{ item.line_no }}">
-          <input type="hidden" name="direction" value="forward">
-          <button class="check" title="move forward">›</button>
-        </form>
-        {% endif %}
-        <form method="post" action="/api/todos/remove" class="inline"
-              onsubmit="return confirm('delete this item?')">
-          <input type="hidden" name="file" value="{{ name }}">
-          <input type="hidden" name="line_no" value="{{ item.line_no }}">
-          <button class="check remove" title="delete">✕</button>
-        </form>
       </div>
     </li>
     {% endfor %}

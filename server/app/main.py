@@ -145,7 +145,7 @@ async def chat_page(request: Request):
 async def todos_page(request: Request):
     return templates.TemplateResponse(request, "todos.html", {
         "tab": "todos",
-        "panes": {name: todos.list_items(name) for name in todos.FILES},
+        "panes": {name: todos.list_items(name) for name in ("today", "todo", "done")},
     })
 
 
@@ -266,7 +266,10 @@ async def reset_chat():
 async def move_todo(request: Request):
     form = await request.form()
     try:
-        todos.move_item(str(form["file"]), int(str(form["line_no"])), str(form["direction"]))
+        if form.get("target"):
+            todos.transfer(str(form["file"]), int(str(form["line_no"])), str(form["target"]))
+        else:
+            todos.move_item(str(form["file"]), int(str(form["line_no"])), str(form["direction"]))
     except ValueError:
         pass  # stale line number (concurrent edit) — just re-render
     referer = request.headers.get("referer", "")

@@ -117,16 +117,13 @@ def remove_item(file: str, line_no: int) -> str:
     return f"removed from {file}.md: {text}"
 
 
-def move_item(file: str, line_no: int, direction: str) -> str:
-    """Move an item forward (todo→today→done) or back (done→today→todo)."""
-    order = ["todo", "today", "done"]
-    if file not in order:
-        raise ValueError(f"unknown file {file}")
-    step = 1 if direction == "forward" else -1
-    target_idx = order.index(file) + step
-    if not 0 <= target_idx < len(order):
-        raise ValueError("cannot move further")
-    target = order[target_idx]
+def transfer(file: str, line_no: int, target: str) -> str:
+    """Move an item to any other file: complete (→done, with breadcrumb),
+    switch (todo↔today), or restore (done→todo)."""
+    if file not in FILES or target not in FILES:
+        raise ValueError(f"unknown file {file}→{target}")
+    if file == target:
+        raise ValueError("same file")
 
     # Capture section for breadcrumb before removing
     section = next((i.section for i in list_items(file) if i.line_no == line_no), "")
@@ -140,7 +137,7 @@ def move_item(file: str, line_no: int, direction: str) -> str:
         entry = f"{clean} ({section})" if section else clean
         _insert_done(entry)
     else:
-        if direction == "back":
+        if file == "done":
             text = re.sub(r" \([^)]*\)$", "", text)  # strip breadcrumb
         if not text.startswith("["):
             text = f"[ ] {text}"
@@ -154,3 +151,16 @@ def move_item(file: str, line_no: int, direction: str) -> str:
         lines.insert(pos, f"- {text}")
         _write(target, "\n".join(lines))
     return f"moved to {target}.md"
+
+
+def move_item(file: str, line_no: int, direction: str) -> str:
+    """Move an item forward (todo→today→done) or back (done→today→todo).
+    Kept for the LLM tool; the UI uses transfer() directly."""
+    order = ["todo", "today", "done"]
+    if file not in order:
+        raise ValueError(f"unknown file {file}")
+    step = 1 if direction == "forward" else -1
+    target_idx = order.index(file) + step
+    if not 0 <= target_idx < len(order):
+        raise ValueError("cannot move further")
+    return transfer(file, line_no, order[target_idx])

@@ -2,12 +2,12 @@
 // skipWaiting + clients.claim so a new worker takes over immediately — without
 // them the very first (cache-first) worker kept serving stale CSS forever.
 // Asset URLs carry ?v= in the templates, which also busts any pre-claim cache.
-const CACHE = 'tally-shell-v9';
+const CACHE = 'tally-shell-v10';
 const SHELL = [
-  '/static/style.css?v=9',
-  '/static/themes.js?v=9',
-  '/static/chat.js?v=9',
-  '/static/status.js?v=9',
+  '/static/style.css?v=10',
+  '/static/themes.js?v=10',
+  '/static/chat.js?v=10',
+  '/static/status.js?v=10',
 ];
 
 self.addEventListener('install', e => {

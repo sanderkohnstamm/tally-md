@@ -3,14 +3,16 @@
 
 {% block content %}
 <section class="pane">
-  <h2>briefing</h2>
+  <h2 class="h2-row">briefing
+    <form method="post" action="/api/briefing" class="inline h2-action"
+          onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='⋯'">
+      <button type="submit" class="h2-btn" title="regenerate briefing">↺</button>
+    </form>
+  </h2>
   {% if briefing %}
     <p class="briefing">{{ briefing }}</p>
   {% else %}
-    <form method="post" action="/api/briefing" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='thinking…'">
-      <button type="submit" class="pane-btn">generate briefing</button>
-    </form>
-    <p class="muted">auto-generated every morning at 7:00</p>
+    <p class="muted">auto-generated every morning at 7:00 — ↺ for one now</p>
   {% endif %}
 </section>
 
