@@ -6,7 +6,7 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -138,7 +138,10 @@ async def chat_page(request: Request):
         history = [dict(r) for r in conn.execute(
             "SELECT * FROM chat_messages ORDER BY id DESC LIMIT 40"
         ).fetchall()][::-1]
-    return templates.TemplateResponse(request, "chat.html", {"tab": "chat", "history": history})
+    running = _active_turn if (_active_turn and not _turns[_active_turn]["done"]) else ""
+    return templates.TemplateResponse(request, "chat.html", {
+        "tab": "chat", "history": history, "active_turn": running,
+    })
 
 
 @app.get("/todos", response_class=HTMLResponse)
@@ -213,13 +216,51 @@ async def upload(request: Request):
 
 
 # ---------- chat ----------
+#
+# The agent turn runs as a server-side background task, decoupled from the HTTP
+# connection: navigating away or iOS suspending the PWA doesn't kill it, and
+# the reply is persisted when it finishes. Events buffer in memory; the client
+# attaches (and re-attaches from any index) via the SSE stream endpoint.
+
+_turns: dict[int, dict] = {}      # turn id -> {"events": [...], "done": bool}
+_turn_seq = 0
+_active_turn: int | None = None
+
+
+async def _run_turn(turn_id: int, messages: list[dict]) -> None:
+    global _active_turn
+    state = _turns[turn_id]
+    try:
+        async with asyncio.timeout(600):
+            async for event in llm.agent_events(messages, session_kind="chat"):
+                if event["type"] == "done":
+                    if event["text"]:
+                        with get_db() as conn:
+                            conn.execute(
+                                "INSERT INTO chat_messages (role, content) VALUES ('assistant', ?)",
+                                (event["text"],),
+                            )
+                    state["events"].append({"type": "done"})
+                else:
+                    state["events"].append(event)
+    except Exception as exc:
+        logging.getLogger("tally").exception("chat turn %d failed", turn_id)
+        state["events"].append({"type": "error", "message": f"{type(exc).__name__}: {str(exc)[:150]}"})
+    finally:
+        state["done"] = True
+        if _active_turn == turn_id:
+            _active_turn = None
+
 
 @app.post("/api/chat")
 async def chat(request: Request):
+    global _turn_seq, _active_turn
     body = await request.json()
     user_text = body.get("message", "").strip()
     if not user_text:
         return {"error": "empty"}
+    if _active_turn is not None and not _turns[_active_turn]["done"]:
+        return {"error": "busy", "turn": _active_turn}
 
     with get_db() as conn:
         rows = [dict(r) for r in conn.execute(
@@ -231,20 +272,39 @@ async def chat(request: Request):
     messages = [{"role": r["role"], "content": r["content"]} for r in rows]
     messages.append({"role": "user", "content": user_text})
 
-    async def stream():
-        async for event in llm.agent_events(messages, session_kind="chat"):
-            if event["type"] == "done":
-                with get_db() as conn:
-                    conn.execute(
-                        "INSERT INTO chat_messages (role, content) VALUES ('assistant', ?)",
-                        (event["text"],),
-                    )
-                payload = {"type": "done"}
-            else:
-                payload = event
-            yield f"data: {json.dumps(payload)}\n\n"
+    _turn_seq += 1
+    turn_id = _turn_seq
+    _turns[turn_id] = {"events": [], "done": False}
+    _active_turn = turn_id
+    for old in [t for t in _turns if t <= turn_id - 4]:  # keep a few for late re-attach
+        del _turns[old]
+    asyncio.create_task(_run_turn(turn_id, messages))
+    return {"turn": turn_id}
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+
+@app.get("/api/chat/stream")
+async def chat_stream(turn: int, from_: int = Query(0, alias="from")):
+    """SSE replay+follow of a turn's events, resumable from any index."""
+    state = _turns.get(turn)
+
+    async def stream():
+        if state is None:
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return
+        i = max(0, from_)
+        while True:
+            while i < len(state["events"]):
+                ev = state["events"][i]
+                i += 1
+                yield f"data: {json.dumps(ev)}\n\n"
+                if ev["type"] in ("done", "error"):
+                    return
+            if state["done"]:
+                return
+            await asyncio.sleep(0.15)
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/chat/reset")

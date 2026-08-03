@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div id="chat-log">
+<div id="chat-log" data-turn="{{ active_turn }}">
   {% if not history %}
     <p class="muted" id="chat-hint">ask about your vault, todos, or calendar —
       tally can also file notes and move todos for you. The conversation continues
@@ -27,4 +27,4 @@
 </form>
 {% endblock %}
 
-{% block scripts %}<script src="/static/chat.js?v=10"></script>{% endblock %}
+{% block scripts %}<script src="/static/chat.js?v=11"></script>{% endblock %}
